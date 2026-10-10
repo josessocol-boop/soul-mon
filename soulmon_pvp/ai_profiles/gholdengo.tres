@@ -1,0 +1,15 @@
+[gd_resource type="Resource" script_class="AIProfile" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://AIProfile.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+personality = "zoning"
+preferred_range = "far"
+aggressiveness = 0.45
+reaction_bonus = 0.02
+combo_chains = [{"trigger": "special1", "followup": "special2", "window": 10}]
+anti_air_move = "basic"
+punish_move = "special2"
+zoning_response = "reflect"
+meter_management = "save_for_ultimate"
