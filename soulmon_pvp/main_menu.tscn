@@ -1,0 +1,66 @@
+[gd_scene format=3 uid="uid://34xxsv52pmeh"]
+
+[ext_resource type="Script" uid="uid://dedtvoodcmiy" path="res://main_menu.gd" id="1"]
+[ext_resource type="Texture2D" uid="uid://bcw8c6aujgitj" path="res://assets/background.png" id="2"]
+
+[node name="MainMenu" type="CanvasLayer" unique_id=1275036324]
+script = ExtResource("1")
+
+[node name="Background" type="TextureRect" parent="." unique_id=598421106]
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 0
+texture = ExtResource("2")
+expand_mode = 1
+stretch_mode = 6
+
+[node name="VBoxContainer" type="VBoxContainer" parent="." unique_id=105043974]
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_constants/separation = 36
+alignment = 1
+
+[node name="Title" type="Label" parent="VBoxContainer" unique_id=1389482876]
+layout_mode = 2
+theme_override_colors/font_color = Color(1, 0.85, 0.2, 1)
+theme_override_font_sizes/font_size = 108
+text = "SOUL-MON PVP"
+horizontal_alignment = 1
+
+[node name="PlayButton" type="Button" parent="VBoxContainer" unique_id=1902049710]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(450, 105)
+layout_mode = 2
+size_flags_horizontal = 4
+theme_override_font_sizes/font_size = 54
+text = "PLAY"
+
+[node name="CharactersButton" type="Button" parent="VBoxContainer" unique_id=2079125667]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(450, 105)
+layout_mode = 2
+size_flags_horizontal = 4
+theme_override_font_sizes/font_size = 54
+text = "CHARACTERS"
+
+[node name="OptionsButton" type="Button" parent="VBoxContainer" unique_id=1512555026]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(450, 105)
+layout_mode = 2
+size_flags_horizontal = 4
+theme_override_font_sizes/font_size = 54
+text = "OPTIONS"
+
+[node name="QuitButton" type="Button" parent="VBoxContainer" unique_id=1371779210]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(450, 105)
+layout_mode = 2
+size_flags_horizontal = 4
+theme_override_font_sizes/font_size = 54
+text = "QUIT"
