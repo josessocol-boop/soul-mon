@@ -1,0 +1,8 @@
+[gd_scene format=3 uid="uid://dntl17e7mi6q"]
+
+[ext_resource type="Script" uid="uid://de4rydy147qfh" path="res://arena/arena_manager.gd" id="1"]
+
+[node name="Main_Game_Root" type="Node2D" unique_id=1566350071]
+
+[node name="Arena_Manager" type="Node" parent="." unique_id=53588025]
+script = ExtResource("1")

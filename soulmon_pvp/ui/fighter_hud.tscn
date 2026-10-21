@@ -1,0 +1,69 @@
+[gd_scene load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://ui/fighter_hud.gd" id="1"]
+[ext_resource type="Script" path="res://ui/skill_slot.gd" id="2"]
+
+[node name="FighterHUD" type="MarginContainer"]
+theme_override_constants/margin_left = 20
+theme_override_constants/margin_top = 20
+theme_override_constants/margin_right = 20
+theme_override_constants/margin_bottom = 20
+script = ExtResource("1")
+
+[node name="VBox" type="VBoxContainer" parent="."]
+custom_minimum_size = Vector2(440, 0)
+theme_override_constants/separation = 6
+
+[node name="Header" type="HBoxContainer" parent="VBox"]
+theme_override_constants/separation = 8
+
+[node name="NameLabel" type="Label" parent="VBox/Header"]
+custom_minimum_size = Vector2(132, 0)
+text = "P1"
+
+[node name="StateLabel" type="Label" parent="VBox/Header"]
+custom_minimum_size = Vector2(76, 0)
+text = "[idle]"
+
+[node name="BurnBadge" type="Label" parent="VBox/Header"]
+custom_minimum_size = Vector2(52, 0)
+horizontal_alignment = 1
+text = "[BURN]"
+
+[node name="PoisonBadge" type="Label" parent="VBox/Header"]
+custom_minimum_size = Vector2(52, 0)
+horizontal_alignment = 1
+text = "[PSN]"
+
+[node name="SlowBadge" type="Label" parent="VBox/Header"]
+custom_minimum_size = Vector2(52, 0)
+horizontal_alignment = 1
+text = "[SLOW]"
+
+[node name="HPLabel" type="Label" parent="VBox/Header"]
+size_flags_horizontal = 3
+horizontal_alignment = 2
+text = "100"
+
+[node name="HPBar" type="ProgressBar" parent="VBox"]
+custom_minimum_size = Vector2(0, 18)
+show_percentage = false
+
+[node name="StaminaBar" type="ProgressBar" parent="VBox"]
+custom_minimum_size = Vector2(0, 8)
+show_percentage = false
+
+[node name="Abilities" type="HBoxContainer" parent="VBox"]
+theme_override_constants/separation = 8
+
+[node name="S1" type="Control" parent="VBox/Abilities"]
+custom_minimum_size = Vector2(46, 46)
+script = ExtResource("2")
+
+[node name="S2" type="Control" parent="VBox/Abilities"]
+custom_minimum_size = Vector2(46, 46)
+script = ExtResource("2")
+
+[node name="Ult" type="Control" parent="VBox/Abilities"]
+custom_minimum_size = Vector2(46, 46)
+script = ExtResource("2")
