@@ -15,13 +15,13 @@ compatibility/default_parent_skeleton_in_mesh_instance_3d=true
 [application]
 
 config/name="Soul-Mon PvP"
-run/main_scene="res://main_menu.tscn"
+run/main_scene="res://ui/main_menu.tscn"
 config/features=PackedStringArray("4.7")
 
 [autoload]
 
-Settings="*res://settings.gd"
-UIManager="*res://ui_manager.gd"
+Settings="*res://system/settings.gd"
+UIManager="*res://system/ui_manager.gd"
 
 [display]
 

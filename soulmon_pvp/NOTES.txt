@@ -1,0 +1,81 @@
+Update: 2026-10-18 (balance pass, tile refresh and zoom view)
+=================================
+
+Built on the project as uploaded on 2026-10-18.
+
+Balance changes (8 fighters, 14 values, see docs/SESSION_REPORT.md for the table):
+- alakazam: HP 105, basic 3.5 dmg with 3 shots
+- gengar: ultimate 26 dmg
+- gholdengo: ultimate 5.5 dmg per shot
+- marshadow: HP 88, speed 330, basic 4.0
+- mewtwo: HP 165, speed 270, basic 9, Shadow Ball 11.5
+- scizor: HP 130
+- tinkaton: ultimate 36 dmg
+- toxicroak: HP 132, basic 7.0
+
+Balance tool: the match CSV format string was missing three specifiers; fixed in ui/debug/balance_tool.gd.
+
+Round 4 win spread: 44 (Mewtwo) to 55 (Tinkaton). Mewtwo is still lowest.
+
+Not verified on screen in Godot 4.7. Headless runs only.
+
+Balance tool display: every fight tile draws every frame by default ("Tile draws per frame" lowers it).
+Click a tile to zoom in on that fight at full size (+ / - / 0 / Esc, Ctrl + wheel). See docs/SESSION_REPORT.md.
+
+Matchup fixes (2026-10-19):
+- lucario: basic attack element FIGHTING -> STEEL (Ghost no longer halves it: 0.5 -> 1.0)
+- toxicroak: basic attack element POISON -> FIGHTING (Steel no longer halves it: 0.5 -> 1.2). Poison still applied via apply="poison".
+
+Type chart (2026-10-19): any immunity now multiplies damage by x0.8 (was x0.5). Immunity overrides super-effective as before.
+
+AI changes (2026-10-19), ai/ai_controller.gd:
+- Keep-away bots no longer back into a wall: within 150 px of a wall they step toward the opponent instead (WALL_EDGE).
+- Melee lead check: a melee move is only started if the gap at the middle of its active frames (predicted from how fast the opponent is closing) is inside its hitbox reach. Stops whiffs at a retreating opponent.
+- Dodge: a dash away from an opponent melee move that is still in windup, checked after the bot's reaction time (reaction_time). Only moves with a windup longer than the reaction time can be dodged (most of the fast ones cannot). DODGE_CHANCE 0.7.
+
+Balance round 5 (2026-10-19), from the AI-run win rates (176 matches each):
+- alakazam: HP 105 -> 98, basic 3.5 -> 3.0 (was 86%)
+- tinkaton: HP 150 -> 170, move speed 150 -> 165 (was 20%)
+- lucario: HP 120 -> 135, special1 9 -> 10 (was 28%)
+- decidueye: special2 13 -> 12 (was 64%)
+- mewtwo: move speed 270 -> 285 (was 41%)
+- round 6: alakazam HP 98 -> 95, ultimate 7.5 -> 6.0; decidueye ultimate 7.0 -> 6.0; tinkaton HP 170 -> 185, basic 10 -> 11; lucario HP 135 -> 145, basic 2.5 -> 2.8; mewtwo basic 9 -> 10
+- round 7: alakazam basic 3.0 -> 2.8; decidueye special1 9.5 -> 9.0; toxicroak basic 7.0 -> 6.5; mewtwo HP 165 -> 175; lucario HP 145 -> 150
+
+AI fixes for missed attacks (2026-10-19):
+- _pick_down: when only the Down version of an attack can reach, it is always chosen. It used to pick the normal basic 10% of the time, and that whiffed every time.
+- _drop_stale_presses: a buffered attack re-checks which version (normal or Down) reaches before it fires, so a press set to Down while the opponent was in range is switched if the opponent has since moved out (and the reverse).
+- _variant_reaches: melee attacks are not started into a dashing or invincible opponent.
+Measured on 176 matches per fighter: melee connects vs standing opponents went from 24% to about 83% for basics at range.
+
+AI projectile and trap avoidance (2026-10-19), ai/ai_controller.gd _avoid_hazards():
+- Stops walking toward an opponent's shot that is coming down the bot's lane (it was walking into them about a third of the time when a shot was in view).
+- Dashes through such a shot once the reaction time has passed (dash i-frames), one roll per shot (PROJ_DODGE_CHANCE 0.85).
+- Hops an opponent trap that is on the bot's path (TRAP_HOP_DIST 110), and dashes out of one it is already standing in (TRAP_AVOID_CHANCE 0.85 per trap).
+Measured on the 6-fighter subset (Mewtwo, Tinkaton, Toxicroak, Decidueye, Lucario, Alakazam; 6 repeats, 180 matches), trap hits taken per game: Toxicroak 1.02 -> 0.52, Mewtwo 1.10 -> 0.77, Alakazam 0.17 -> 0.07, Tinkaton flat (0.68 -> 0.72).
+Projectile hits taken per game did NOT drop (Mewtwo 13.3 -> 15.6, Tinkaton 12.7 -> 12.9, Lucario 9.3 -> 9.4). An instant, always-taken dodge gave the same numbers, so the gap is not the reaction time: most shots are first seen within 100 px (they spawn on the bot), or the bot is in hitstun or mid-attack, where no dash can start. Fixing that needs spacing changes, which move balance, so it was left alone.
+
+Alakazam balance (2026-10-19, hard, 6 repeats per pairing): 82.6% -> 61.4% win rate.
+- Psybeam (basic): dmg 2.8 -> 2.0, shot speed 640 -> 560, total frames 24 -> 28. It was landing about 21 times a match.
+- Mind Blast (ultimate): cooldown 8 -> 10 s.
+- Reflect (special2): counter_cap 10 (new move key, core/fighter.gd: counter_mult and counter_cap). A heavy hit came back for about 30.
+
+
+Roster balance, hard, 12 fighters, 6 repeats per pairing (2026-10-20). Win rates: before 29.5% (Mewtwo) to 71.2% (Greninja); after 40.9% (Scizor, Lucario) to 60.6% (Decidueye).
+- Alakazam Mind Blast (ultimate): size 900x70 -> 520x70, off 460 -> 270, on 14 -> 20, off_f 60 -> 44, total 80 -> 70, dmg 6 -> 5. It is narrower and shorter-lived, so a dash can get out of it. Its damage per game went from 29.7 to 13.7. The bots still connect with it 83% of the time because they do not dodge it.
+- Greninja: Psychic blade fan special1 dmg 5.5 -> 4.0, cd 3.0 -> 3.5; Hydro Cannon (ultimate) dmg 32 -> 28.
+- Marshadow: special1 dmg 12 -> 10, cd 2.5 -> 3.0.
+- Mewtwo: HP 175 -> 190; basic reach 66x56 -> 78x58 (off 38 -> 42), total 22 -> 20 (it whiffed about half its basics); special1 cd 3.0 -> 2.5.
+- Tinkaton: move speed 165 -> 180; basic total 36 -> 28 (the change offered earlier, now applied).
+- Gengar: HP 90 -> 100, move speed 250 -> 260.
+- Scizor: HP 130 -> 140.
+- Lucario: HP 150 -> 160.
+- Toxicroak: HP 132 -> 140.
+Final win rates (hard): Decidueye 60.6, Greninja 58.3, Marshadow 56.8, Gholdengo 55.3, Alakazam 53.0, Toxicroak 52.3, Mewtwo 47.7, Blaziken 48.5, Gengar 43.2, Tinkaton 42.4, Scizor 40.9, Lucario 40.9. Noise is about +-4 points per fighter.
+
+Move check and effect fixes (2026-10-21):
+- Mewtwo basic_down (Ground Wave): added spawn 6. The shockwave never spawned before (no spawn frame). It now makes 2 shockwaves at every distance.
+- Decidueye special2_down (Vine Lash): hit_on 9 -> 4. The whip opened while the hop was high and never reached a close target. Now it hits at 60-260 px.
+- decidueye_vine.png redrawn as a green leafy whip (120x20 per frame, 4 frames, same size). The old strip was purple spiky crowns, which did not read as a vine.
+- Balance tool (Ctrl+Shift+B): new "Move check (M)" button and M key. It runs every ticked left-side fighter's moves at 60/100/150/260 px against a dummy and writes balance/move_check_<time>.txt. The report lists each move's hits, damage, projectiles, traps, applied effects and any NEVER STARTED or NO EFFECT moves. Code: ui/debug/move_check.gd.
+- The move check's pull flag now needs a move with a pull key (a lunge no longer sets it).

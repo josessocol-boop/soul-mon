@@ -1,1001 +1,558 @@
-# Soul-Mon PvP - Structures and Functions List
-
-## Overview
-This document lists the key structures (classes, enums, constants) and functions in the Soul-Mon PvP codebase, explaining what they do and what they're connected to.
-
-## Core Structures
-
-### Classes
-
-#### 1. Fighter (`fighter.gd`)
-**Base class for all fighters**
-- **What it does:** 
-  - Implements core combat mechanics (movement, attacks, defense)
-  - Manages hitboxes, hurtboxes, and collision detection
-  - Handles hitstun, teching, wavedashing, and movement states
-  - Manages visual effects, sprites, and status indicators
-  - Coordinates with subsystems (input, stats, state machine, synergy, support)
-- **Connected to:** 
-  - InputHandler (creates one), StatsComponent (creates one), StateMachine (creates one)
-  - SynergySystem (creates one), SupportSystem (creates one)
-  - Various Arena2D nodes (hitbox, hurtbox) and Sprite2D nodes (visual effects)
-  - All fighter archetypes inherit from this class
-
-#### 2. Fighter Archetypes (fighter_*.gd)
-**Specialized fighter classes**
-- **Examples:** fighter_marshadow.gd, fighter_gholdengo.gd, fighter_blaziken.gd, etc.
-- **What they do:**
-  - Override _apply_archetype() to set fighter-specific stats (HP, speed, jump, etc.)
-  - Override _define_moves() to define unique move sets
-  - Set fighter-specific visuals (sprite sheet, effect textures, colors)
-  - Inherit all core combat functionality from base Fighter class
-- **Connected to:**
-  - Base Fighter class (inheritance)
-  - Specific asset files (sprite sheets, effect textures)
-  - Unique move definitions and stats
-
-#### 3. InputHandler (`input_handler.gd`)
-**Manages input buffering and action detection**
-- **What it does:**
-  - Tracks button presses with frame-based buffering for forgiving inputs
-  - Separates local input from potential network input (remote mode)
-  - Implements hold_buffers and hold_all mechanics for hitstop and move buffering
-  - Registers all gameplay actions in InputMap
-  - Provides want() and consume() methods for checking and using buffered inputs
-- **Connected to:**
-  - Each Fighter instance (1:1 composition)
-  - InputMap (registers gameplay actions)
-  - Fighter's _try_actions() and poll() methods
-
-#### 4. StatsComponent (`stats_component.gd`)
-**Manages fighter statistics and status effects**
-- **What it does:**
-  - Tracks HP, max HP, stamina, max stamina
-  - Implements stamina regeneration and exhaustion mechanics
-  - Manages status effects (burn, poison, slow) as frame counters
-  - Provides elemental type system with weakness/resistance/immunity calculations
-  - Handles damage over time effects (burn, poison)
-  - Provides speed modification based on slow status
-- **Connected to:**
-  - Each Fighter instance (1:1 composition)
-  - Fighter's receive_hit(), take_dot(), and _check_death() methods
-  - Status effect application methods (apply_burn, apply_poison, apply_slow)
-  - Elemental type lookup (type_multiplier static method)
-
-#### 5. StateMachine (`state_machine.gd`)
-**Handles state transitions for fighters**
-- **What it does:**
-  - Calls fighter.state_<state_name>(delta) each physics frame
-  - Manages enter_<state>() and exit_<state>() hooks when changing states
-  - Tracks frames spent in current state
-  - Untyped fighter reference to avoid circular dependencies
-- **Connected to:**
-  - Each Fighter instance (1:1 composition)
-  - Fighter's state methods (state_idle, state_run, state_attack, etc.)
-  - Fighter's enter/exit state hooks
-
-#### 6. SynergySystem (`synergy_system.gd`)
-**Manages burst gauge, burst mode, and ultimate abilities**
-- **What it does:**
-  - Tracks Synergy Burst gauge (0-1000) that fills through combat actions
-  - Manages Burst State (READY, ACTIVE, COOLDOWN, ULTIMATE_USED)
-  - Implements Burst Mode activation (temporary powered state)
-  - Gates Ultimate ability behind full burst gauge during Burst Mode
-  - Emits signals for gauge changes, burst state changes, and ultimate usage
-  - Allows archetype-specific fill multipliers
-- **Connected to:**
-  - Each Fighter instance (1:1 composition)
-  - Fighter's burst-related variables and traits
-  - Fighter's hit connections (on_hit_connect, on_damage_dealt, on_damage_taken)
-  - Fighter's burst callbacks (_on_burst_activated, etc.)
-  - Fighter's ultimate readiness and usage methods
-
-#### 7. SupportSystem (`support_system.gd`)
-**Manages support Pokémon calls**
-- **What it does:**
-  - Tracks up to 3 support Pokémon slots with individual cooldowns
-  - Manages active support effects (duration-based buffs)
-  - Provides static definitions for support Pokémon (Pikachu, Eevee, Chansey, etc.)
-  - Handles support effect application (instant and duration effects)
-  - Tracks damage buffs from support effects
-  - Emits signals for support calls, readiness, and cooldowns
-- **Connected to:**
-  - Each Fighter instance (1:1 composition)
-  - Fighter's support-related variables and callbacks
-  - Support definitions (static get_support_definition)
-  - ArenaManager (for spawning support effects)
-
-#### 8. ArenaManager (`arena_manager.gd`)
-**Central game manager**
-- **What it does:**
-  - Builds and owns the game arena, fighters, HUD, and UI flow
-  - Manages fighter selection and match initialization
-  - Handles game modes (PvP, PvCPU, CPUvCPU)
-  - Manages camera, sound effects, and visual juicing
-  - Processes fighter signals (hits, events, deaths) for game reactions
-  - Handles restarts and victory conditions
-  - Loads and manages the fighter roster
-- **Connected to:**
-  - Two Fighter instances (p1, p2) - 1:2 composition
-  - HUD (displays fighter information)
-  - CharacterSelect (character selection screen)
-  - AIController (for CPU fighters)
-  - ArenaCamera and Sfx (visual and audio systems)
-  - Fighter signals (died, got_hit, event)
-  - ROSTER constant (list of available fighters)
-
-#### 9. HUD (`hud.gd`)
-**Displays fighter information and controls hint**
-- **What it does:**
-  - Shows two fighter HUD blocks (P1 top-left, P2 top-right)
-  - Displays legible controls hint in translucent panel at bottom
-  - Shows round winner banners
-  - Binds to two Fighter instances to display their stats
-  - Updates each frame from bound fighters' stats
-- **Connected to:**
-  - Two Fighter instances (via bind method)
-  - FighterHUD instances (P1 and P2 blocks)
-  - Banner label (round announcements)
-  - Help panel (controls hint)
-  - ArenaManager (added as child and updated each frame)
-
-#### 10. FighterHUD (`fighter_hud.tscn` + `fighter_hud.gd`)
-**Displays individual fighter stats**
-- **What it does:**
-  - Shows HP bar, stamina bar, and status effect indicators
-  - Displays skill slots for special moves
-  - Shows fighter name and color coding
-  - Updates from fighter's stats each frame
-- **Connected to:**
-  - HUD (instanced as P1 and P2 blocks)
-  - Individual Fighter stats (HP, stamina, etc.)
-  - Status effect icons (burn, slow, poison)
-  - Skill slots (for special move visualization)
-
-#### 11. Projectile (`projectile.gd` + `projectile.tscn`)
-**Handles projectile behavior**
-- **What it does:**
-  - Moves in a straight line with configurable speed
-  - Applies hit effects when colliding with fighters
-  - Supports vertical velocity per shot (for spread shots)
-  - Handles wall sliding to prevent getting stuck in geometry
-  - Emits shot event when spawned
-- **Connected to:**
-  - Fighter's _spawn_projectile() method
-  - ArenaManager (added as child to combat_root)
-  - Fighter's move definitions (projectile kind moves)
-  - SupportSystem (for support projectile effects)
-
-#### 12. Trap (`trap.gd` + `trap.tscn`)
-**Handles trap behavior**
-- **What it does:**
-  - Spawns at a distance from the fighter in the facing direction
-  - Waits for fighters to touch it before activating
-  - Applies hit effects when triggered
-  - Can be configured as persistent or one-time use
-  - Emits trap_set event when spawned
-- **Connected to:**
-  - Fighter's _spawn_trap() method
-  - ArenaManager (added as child to combat_root)
-  - Fighter's move definitions (trap kind moves)
-  - SupportSystem (for support trap effects)
-
-#### 13. AI System (`AIController.gd`, `AIBehavior.gd`, `AIProfile.gd`)
-**Provides computer-controlled fighter behavior**
-- **What it does:**
-  - Implements behavior tree-based AI for fighters
-  - Supports multiple difficulty levels (easy, medium, hard)
-  - Can target specific fighters and adapt behavior
-  - Uses AI profiles to define fighter-specific tendencies
-  - Implements behaviors like aggression, spacing, and move selection
-- **Connected to:**
-  - ArenaManager (_attach_ai method)
-  - Fighter instances (added as child when CPU-controlled)
-  - Target fighter reference (set via set_target)
-  - AI behavior trees and profiles
-
-#### 14. ScreenShake (`screen_shake.gd`) - **Phase 4**
-**Camera shake effect system**
-- **What it does:**
-  - Extends Camera2D to provide screenspace shake
-  - `shake(strength: float, frames: int)` - triggers shake with linear decay over duration
-  - Strength is compared against current shake; only stronger shakes override
-  - `offset` is updated each physics frame with random vector scaled by remaining time fraction
-- **Connected to:**
-  - ArenaManager (created in _build_juice, set as current camera)
-  - ArenaManager._on_got_hit() calls camera.shake() with amplitude based on damage
-  - ArenaManager._on_fighter_event() shakes on ultimate
-
-#### 15. HitVfx (`hit_vfx.gd`) - **Phase 4**
-**Elemental hit burst visual effects**
-- **What it does:**
-  - One-shot Node2D that spawns impact ring + sparks + element-colored particle emitters
-  - Static `spawn(parent: Node, info: Dictionary)` factory method
-  - 13 element-specific styles (Normal, Fire, Water, Grass, Ice, Steel, Ghost, Fighting, Fairy, Bug, Dark, Poison)
-  - Each style defines: colors, particle count, velocity range, gravity, size, lifetime, spread
-  - Super-effective hits (mult > 1.0) add gold star burst overlay
-  - KO hits (info.ko) and heavy hits boost particle counts and ring size
-  - Auto-cleans up after 1.2s via timer
-  - Draws expanding ring in _draw() for 0.18s
-- **Connected to:**
-  - ArenaManager._on_got_hit() calls HitVfx.spawn(combat_root, info)
-  - Receives hit info: pos, element, dmg, mult, dir, heavy, ko, hitstop, kb
-
-#### 16. DamageNumber (`damage_number.gd`) - **Phase 4**
-**Floating damage number popups**
-- **What it does:**
-  - Extends Label, shows damage value with optional "!" for super-effective
-  - Static `spawn(parent: Node, info: Dictionary)` factory
-  - Color coding: gold for super-effective (mult > 1.0), muted grey for resisted (mult < 1.0), red for KO, white for normal
-  - KO hits use larger font (34), heavy hits use 28, normal use 20
-  - Tween animation: rises 44-58px over 0.65s, pops scale (back ease), fades after 0.35s, auto-frees
-  - KO adds slight random rotation
-- **Connected to:**
-  - ArenaManager._on_got_hit() calls DamageNumber.spawn(combat_root, info)
-
-#### 17. Sfx (`sfx.gd`) - **Phase 4**
-**Positional sound effect pool player**
-- **What it does:**
-  - Manages pool of 12 AudioStreamPlayer2D instances
-  - Loads streams from `res://assets/audio/<name>.wav` on demand (caches)
-  - Missing files silently skipped (drop in real audio to replace)
-  - `play(sound, pos, volume_db, pitch)` - finds free player, sets position/volume/pitch, plays
-  - Max distance 4000 (heard across arena)
-- **Connected to:**
-  - ArenaManager (created in _build_juice)
-  - ArenaManager._on_got_hit() plays hit_light/hit_heavy/hit_ko + hit_super (super-effective)
-  - ArenaManager._on_fighter_event() plays EVENT_SOUNDS mapping (jump, dash, attack, special1, special2, ultimate, shot, trap_set)
-  - Element pitch variation via ELEMENT_PITCH constant
-
-### Enums
-
-#### 1. StatsComponent.Element (`stats_component.gd`)
-**Elemental types for the type effectiveness system**
-- **Values:** NORMAL, FIRE, WATER, GRASS, ICE, STEEL, GHOST, FIGHTING, FAIRY, BUG, DARK, POISON
-- **What it does:** Defines the elemental types used in the game's type effectiveness system
-- **Connected to:**
-  - Fighter's element and types variables
-  - StatsComponent's type_multiplier method
-  - Move definitions (element override)
-  - Status effect application (burn from fire, slow from water, poison from poison)
-
-#### 2. SynergySystem.BurstState (`synergy_system.gd`)
-**States of the Synergy Burst system**
-- **Values:** READY, ACTIVE, COOLDOWN, ULTIMATE_USED
-- **What it does:** Tracks the current state of a fighter's burst gauge
-- **Connected to:**
-  - SynergySystem's state variable
-  - Burst activation, end, and ultimate usage logic
-  - Gauge filling and ultimate availability checks
-
-#### 3. SupportSystem.SupportType (`support_system.gd`)
-**Types of support effects**
-- **Values:** ATTACK, BUFF, HEAL, UTILITY
-- **What it does:** Categorizes support Pokémon by their effect type
-- **Connected to:**
-  - Support definitions in get_support_definition
-  - Effect application logic (_apply_support_effect)
-  - Active effect tracking
-
-### Constants
-
-#### 1. Fighter Constants (`fighter.gd`)
-**Core combat tuning values**
-- **Examples:** GRAVITY_RISE, GRAVITY_FALL, JUMP_CUT, GROUND_ACCEL, AIR_ACCEL
-- **What they do:** Tune core movement and combat physics
-- **Connected to:** Fighter's _gravity, _steer, and movement methods
-
-#### 2. Fighter.Anims (`fighter.gd`)
-**Animation definition for fighter sprite sheets**
-- **Value:** [["idle", 4, 6.0, true], ["run", 6, 12.0, true], ["jump", 2, 6.0, false], ["dash", 2, 10.0, false], ["attack", 4, 16.0, false], ["hitstun", 2, 8.0, true], ["ko", 3, 6.0, false]]
-- **What it does:** Defines the animation rows in fighter sprite sheets
-- **Connected to:** Fighter's _build_frames and _setup_visuals methods
-
-#### 3. Fighter.MOVE_DEFAULTS (`fighter.gd`)
-**Default move template**
-- **What it does:** Provides default values for all move properties
-- **Connected to:** Fighter's mv() helper method and _define_moves defaults
-
-#### 4. StatsComponent Constants (`stats_component.gd`)
-**Status effect and type system constants**
-- **Examples:** BURN_DAMAGE, BURN_TICKS, POISON_DAMAGE, POISON_TICKS, SLOW_FACTOR
-- **What they do:** Tune status effect duration and strength
-- **Connected to:** Status effect application and ticking methods
-
-#### 5. SynergySystem Constants (`synergy_system.gd`)
-**Burst system tuning values**
-- **Examples:** GAUGE_MAX, GAUGE_FILL_ON_HIT, BURST_DURATION, BURST_COOLDOWN
-- **What they do:** Tune burst gauge fill rates, duration, and cooldowns
-- **Connected to:** Gauge filling, burst activation, and ultimate logic
-
-#### 6. SupportSystem Constants (`support_system.gd`)
-**Support system tuning values**
-- **Examples:** MAX_SUPPORTS, BASE_COOLDOWN
-- **What they do:** Tune support slot count and base cooldown times
-- **Connected to:** Support initialization and cooldown tracking
-
-#### 7. ArenaManager Constants (`arena_manager.gd`)
-**Game world and tuning constants**
-- **Examples:** FLOOR_TOP, SHAKE_SCALE, ELEMENT_PITCH, EVENT_SOUNDS, ROSTER
-- **What they do:** Define game world boundaries, audio mapping, and available fighters
-- **Connected to:** Arena building, audio system, hit reactions, and fighter selection
-
-#### 8. InputHandler Constants (`input_handler.gd`)
-**Input buffering constants**
-- **Examples:** BUFFER_WINDOWS, COMBAT_ACTIONS
-- **What they do:** Define input buffer durations for different actions
-- **Connected to:** Input polling and buffer management
-
-#### 9. Phase 4 Juice Constants - **Phase 4**
-**Screen shake, VFX, and audio tuning**
-
-**Fighter (`fighter.gd`):**
-- `HITSTOP_SCALE := 1.0` - Global hitstop multiplier (0 = disabled)
-- `KO_HITSTOP := 12` - Extra hitstop frames on killing blow
-- `BUFFER_TAIL := 8` - Combat presses held until last N frames of move
-
-**ArenaManager (`arena_manager.gd`):**
-- `SHAKE_SCALE := 1.0` - Global screen shake multiplier (0 = disabled)
-- `ELEMENT_PITCH := {GHOST: 0.85, STEEL: 1.25, FAIRY: 1.4, FIRE: 0.95, DARK: 0.8, POISON: 0.9}` - Hit sound pitch per element
-- `EVENT_SOUNDS := {"jump": "jump", "dash": "dash", "attack": "swing", "special1": "swing_special", "special2": "swing_special", "ultimate": "ultimate", "shot": "shot", "trap_set": "trap_set"}` - Gameplay event to sound file mapping
-
-**StatsComponent (`stats_component.gd`):**
-- `FPS := 60` - Frame rate for deterministic status effect tick timing
-
-**ScreenShake (`screen_shake.gd`):**
-- Shake decays linearly: `offset = random_vector * amp * (frames_left / total)`
-
-**HitVfx (`hit_vfx.gd`):**
-- `STYLE` dictionary - 13 element-specific particle configurations (color, count, velocity, gravity, size, lifetime, spread)
-- Ring animation: 0.18s duration, expands from 40% to 100% of `ring_size`
-
-**DamageNumber (`damage_number.gd`):**
-- Font sizes: KO=34, heavy=28, normal=20
-- Animation: rise 44-58px over 0.65s, scale pop 1.2x (0.12s back-ease), fade after 0.35s, auto-free at 1.2s
-
-**Sfx (`sfx.gd`):**
-- `POOL := 12` - AudioStreamPlayer2D pool size
-- `max_distance = 4000.0` - Heard across arena
-
-- **What they do:** Tune visual/audio feedback for hits, movement, and combat events
-- **Connected to:** ArenaManager._on_got_hit(), _on_fighter_event(), Fighter hitstop/cancel logic
-
-## Key Functions
-
-### Fighter Class Functions
-
-#### 1. Fighter._apply_archetype() 
-- **What it does:** Sets fighter-specific stats (HP, speed, jump, etc.) - overridden by archetypes
-- **Connected to:** Fighter._ready() calls this during initialization
-
-#### 2. Fighter._define_moves()
-- **What it does:** Defines the fighter's move set - overridden by archetypes
-- **Connected to:** Fighter._ready() uses this to set up moves
-
-#### 3. Fighter.configure(p_prefix: String, face: int)
-- **What it sets:** Sets up fighter prefix ("p1"/"p2") and facing direction (1/-1)
-- **Connected to:** ArenaManager._start_match() calls this when spawning fighters
-
-#### 4. Fighter._ready()
-- **What it does:** Initializes the fighter: applies archetype, sets up collision shapes, creates subsystems, binds signals
-- **Connected to:** Godot engine calls this when the node enters the scene tree
-
-#### 5. Fighter._physics_process(delta: float)
-- **What it does:** Main game loop for fighters: processes input, updates state machine, handles hitstop, ticks stats, updates visuals
-- **Connected to:** Godot engine calls this each physics frame
-
-#### 6. Fighter._try_actions() -> bool
-- **What it does:** Checks for buffered inputs and attempts to change state to perform actions
-- **Connected to:** Fighter state methods call this to check for action inputs
-
-#### 7. Fighter.receive_hit(attacker: Fighter, damage: float, kb: Vector2, from_x: float, move_data: Dictionary) -> bool
-- **What it does:** Applies damage to the fighter, handles hitstop, status effects, knockback, and hit confirmation
-- **Connected to:** Fighter's _check_hits() method calls this on overlapping hitboxes
-
-#### 8. Fighter._check_hits()
-- **What it does:** Checks the fighter's hitbox for overlaps with enemy hurtboxes and processes hits
-- **Connected to:** Fighter's _run_move() calls this during melee moves
-
-#### 9. Fighter._run_move(delta: float)
-- **What it does:** General move runner that handles movement, hit detection, and move completion for most move kinds
-- **Connected to:** Fighter state methods for attack, special1, special2, ultimate call this
-
-#### 10. Fighter._enter_move(key: String)
-- **What it does:** Sets up variables for a new move (current move, hit tracking, visuals, etc.)
-- **Connected to:** Fighter's enter_*_state methods call this
-
-#### 11. Fighter._finish_move()
-- **What it does:** Transitions back to idle or jump state after a move completes
-- **Connected to:** Fighter._run_move() calls this when a move finishes
-
-#### 12. Fighter._spawn_projectile(m: Dictionary, vy: float)
-- **What it does:** Spawns a projectile based on move data and vertical velocity
-- **Connected to:** Fighter._spawn_scheduled() calls this for projectile moves
-
-#### 13. Fighter._spawn_trap(m: Dictionary)
-- **What it does:** Spawns a trap based on move data
-- **Connected to:** Fighter._spawn_scheduled() calls this for trap moves
-
-#### 14. Fighter._wavedash()
-- **What it does:** Performs a wavedash (air dodge into horizontal burst with i-frames)
-- **Connected to:** Fighter.state_jump() calls this when dash is pressed during jump
-
-#### 15. Fighter.state_*_methods (state_idle, state_run, state_jump, state_dash, etc.)
-- **What they do:** Handle logic for each fighter state (movement, actions, state transitions)
-- **Connected to:** StateMachine.tick() calls the appropriate state method each frame
-
-#### 16. Fighter.enter_*_methods (enter_attack, enter_special1, etc.)
-- **What they do:** Set up when entering a move state (calls _enter_move)
-- **Connected to:** StateMachine's enter_<state>() hook calls these
-
-#### 17. Fighter.exit_*_methods (exit_attack, exit_special1, etc.)
-- **What they do:** Clean up when exiting a move state (calls _end_move)
-- **Connected to:** StateMachine's exit_<state>() hook calls these
-
-#### 18. Fighter._setup_visuals()
-- **What it does:** Sets up the fighter's sprite, effects, and status icons
-- **Connected to:** Fighter._ready() calls this during initialization
-
-#### 19. Fighter._update_visuals()
-- **What it does:** Updates the fighter's visual appearance each frame (sprite, effects, icons, etc.)
-- **Connected to:** Fighter._physics_process() calls this each frame
-
-#### 20. Fighter.event.emit(kind: String, pos: Vector2)
-- **What it does:** Emits gameplay events for sound/VFX hooks (jump, dash, attack, special1, special2, ultimate, shot, trap_set)
-- **Connected to:** Various fighter methods call this during actions, ArenaManager receives it for audio/VFX
-
-#### 21. Fighter.got_hit.emit(info: Dictionary)
-- **What it does:** Emits when the fighter gets hit (contains hit details)
-- **Connected to:** Fighter.receive_hit() calls this, ArenaManager receives it for hit reactions
-
-#### 22. Fighter.died.emit(fighter)
-- **What it does:** Emits when the fighter dies
-- **Connected to:** Fighter._check_death() calls this, ArenaManager receives it for victory handling
-
-#### 23. Fighter._try_special_cancel() -> bool - **Phase 4**
-- **What it does:** Checks for buffered special/ultimate inputs on hit confirm; enables cancel chains (basic → special1 → special2 → ultimate). Priority: ultimate (if full stamina) > special2 > special1. Consumes input and stamina, changes state.
-- **Connected to:** Fighter._run_move() calls this when hit_confirmed and move is in active frames (on >= frame)
-
-#### 24. Fighter._hitstop_frames(dmg: float, m: Dictionary) -> int - **Phase 4**
-- **What it does:** Calculates hitstop frames based on damage: 3f (<6 dmg), 4f (6-10), 5f (10-18), 6f (18-30), 7f (30+). Multi-hit moves (hit_interval > 0) capped at 2f. Scaled by HITSTOP_SCALE. KO hits use KO_HITSTOP (12).
-- **Connected to:** Fighter.receive_hit() calls this to set freeze_frames on both attacker and defender
-
-#### 25. Fighter._end_move() - **Phase 4 (updated)**
-- **What it does:** Resets move state (hit_confirmed = false, move_spawned = 0, move_teleported = false), emits event for the move kind, transitions via _finish_move()
-- **Connected to:** Fighter exit_*_state hooks call this
-
-### InputHandler Functions
-
-#### 1. InputHandler.poll()
-- **What it does:** Updates input state each frame (gets axis values, checks button presses, manages buffers)
-- **Connected to:** Fighter._physics_process() calls this each frame
-
-#### 2. InputHandler.want(action: String) -> bool
-- **What it does:** Checks if an action is currently buffered and available
-- **Connected to:** Fighter._try_actions() calls this to check for inputs
-
-#### 3. InputHandler.consume(action: String)
-- **What it does:** Consumes (clears) a buffered action input
-- **Connected to:** Fighter._try_actions() calls this after using an input
-
-#### 4. InputHandler.clear()
-- **What it does:** Clears all buffered inputs
-- **Connected to:** Fighter.receive_hit() calls this during hitstop to prevent surprise moves
-
-#### 5. InputHandler.register_actions()
-- **What it does:** Registers all gameplay actions in the InputMap
-- **Connected to:** ArenaManager._setup() calls this during initialization
-
-### StatsComponent Functions
-
-#### 1. StatsComponent.tick(delta: float)
-- **What it does:** Regenerates stamina over time
-- **Connected to:** Fighter._physics_process() calls this each frame (when not in hitstop)
-
-#### 2. StatsComponent.can_spend(cost: float) -> bool
-- **What it does:** Checks if the fighter has enough stamina to spend
-- **Connected to:** Fighter._try_actions() calls this before attempting actions
-
-#### 3. StatsComponent.spend(cost: float)
-- **What it does:** Spends stamina and sets exhausted flag if empty
-- **Connected to:** Fighter methods call this when performing actions that cost stamina
-
-#### 4. StatsComponent.gain_stamina(amount: float)
-- **What it does:** Adds stamina (capped at max)
-- **Connected to:** Fighter.receive_hit() calls this on basic attack hits
-
-#### 5. StatsComponent.tick_statuses()
-- **What it does:** Updates status effect timers and emits tick signals for burn/poison
-- **Connected to:** Fighter._physics_process() calls this each frame (when not in hitstop)
-
-#### 6. StatsComponent.apply_burn(), apply_poison(), apply_slow()
-- **What they do:** Apply the respective status effects
-- **Connected to:** Fighter._apply_status() calls these based on element and move data
-
-#### 7. StatsComponent.burning(), poisoned(), slowed() -> bool
-- **What they do:** Check if the respective status is active
-- **Connected to:** Fighter._update_visuals() calls these to update visual indicators
-
-#### 8. StatsComponent.get_speed() -> float
-- **What it does:** Gets current speed modified by slow status
-- **Connected to:** Fighter._steer() uses this for movement speed calculation
-
-#### 9. StatsComponent.clear_statuses()
-- **What it does:** Clears all status effects
-- **Connected to:** Fighter._check_death() and ArenaManager._on_died() call this on fighter death
-
-#### 10. StatsComponent.type_multiplier(attacker: int, defenders: Array) -> float (static)
-- **What it does:** Calculates type effectiveness multiplier based on attacker element and defender types
-- **Connected to:** Fighter.receive_hit() calls this to calculate damage multiplier
-
-### StateMachine Functions
-
-#### 1. StateMachine.start(f: Node, initial: String)
-- **What it does:** Initializes the state machine with a fighter and starting state
-- **Connected to:** Fighter._ready() calls this to set up the state machine
-
-#### 2. StateMachine.change(next: String)
-- **What it does:** Changes to a new state (calls exit_<current> and enter_<next> hooks)
-- **Connected to:** Fighter state methods call this to transition states
-
-#### 3. StateMachine.tick(delta: float)
-- **What it does:** Increments frame counter and calls the fighter's current state method
-- **Connected to:** Fighter._physics_process() calls this each frame
-
-#### 4. StateMachine._hook(prefix: String)
-- **What it does:** Calls enter_<state> or exit_<state> method on the fighter if it exists
-- **Connected to:** StateMachine.start() and StateMachine.change() call this
-
-### SynergySystem Functions
-
-#### 1. SynergySystem.set_player(pid: int)
-- **What it does:** Sets which player this system belongs to (for signaling)
-- **Connected to:** Fighter._ready() calls this during initialization
-
-#### 2. SynergySystem.set_archetype_traits(traits: Dictionary)
-- **What it does:** Sets archetype-specific burst fill multipliers
-- **Connected to:** Fighter._ready() calls this during initialization
-
-#### 3. SynergySystem._process(delta: float)
-- **What it does:** Updates burst and cooldown timers each frame
-- **Connected to:** Godot engine calls this each frame (process_mode = ALWAYS)
-
-#### 4. SynergySystem._fill_gauge(amount: float)
-- **What it does:** Adds amount to the burst gauge (with clamping) and emits gauge_changed signal
-- **Connected to:** Various on_* methods call this to fill the gauge
-
-#### 5. SynergySystem.on_hit_connect(is_counter: bool = false)
-- **What it does:** Fills burst gauge when a move connects (more on counter hits)
-- **Connected to:** Fighter._check_hits() calls this when a hit connects
-
-#### 6. SynergySystem.on_damage_dealt(amount: float)
-- **What it does:** Fills burst gauge based on damage dealt
-- **Connected to:** Fighter.receive_hit() calls this after applying damage
-
-#### 7. SynergySystem.on_damage_taken(amount: float)
-- **What it does:** Fills burst gauge based on damage taken
-- **Connected to:** Fighter.receive_hit() calls this after taking damage
-
-#### 8. SynergySystem.try_activate_burst() -> bool
-- **What it does:** Attempts to activate Burst Mode if ready and gauge is full
-- **Connected to:** Fighter methods call this to check for burst activation
-
-#### 9. SynergySystem._end_burst()
-- **What it does:** Ends Burst Mode and sets appropriate cooldown state
-- **Connected to:** SynergySystem._process() calls this when burst timer expires
-
-#### 10. SynergySystem.try_use_ultimate() -> bool
-- **What it does:** Attempts to use the ultimate ability if in Burst Mode and gauge is full
-- **Connected to:** Fighter._try_actions() calls this for ultimate input
-
-#### 11. SynergySystem._end_burst() (continued)
-- **What it does:** Ends burst early after ultimate use and sets ULTIMATE_USED state
-- **Connected to:** SynergySystem.try_use_ultimate() calls this after using ultimate
-
-#### 12. SynergySystem.get_burst_time_remaining() -> float
-- **What it does:** Gets remaining time in current Burst Mode
-- **Connected to:** Fighter UI might use this for burst timer display
-
-#### 13. SynergySystem.get_cooldown_remaining() -> float
-- **What it does:** Gets remaining time before burst gauge can refill again
-- **Connected to:** Fighter UI might use this for burst cooldown display
-
-#### 14. SynergySystem.is_burst_active() -> bool
-- **What it does:** Checks if Burst Mode is currently active
-- **Connected to:** Fighter methods check this for burst armor and passive heal
-
-#### 15. SynergySystem.is_ultimate_available() -> bool
-- **What it does:** Checks if the ultimate can be used right now
-- **Connected to:** Fighter._try_actions() calls this for ultimate input
-
-#### 16. SynergySystem.reset()
-- **What it does:** Resets the burst system to initial state
-- **Connected to:** ArenaManager._start_match() might call this for new matches
-
-### SupportSystem Functions
-
-#### 1. SupportSystem.set_player(pid: int)
-- **What it does:** Sets which player this system belongs to (for signaling)
-- **Connected to:** Fighter._ready() calls this during initialization
-
-#### 2. SupportSystem.set_supports(support_ids: Array)
-- **What it does:** Sets which support Pokémon are available in each slot
-- **Connected to:** CharacterSelect or save data would call this to set up supports
-
-#### 3. SupportSystem._process(delta: float)
-- **What it does:** Updates cooldown timers and active effects each frame
-- **Connected to:** Godot engine calls this each frame (process_mode = ALWAYS)
-
-#### 4. SupportSystem.try_call_support(slot: int) -> bool
-- **What it does:** Attempts to call a support from the specified slot
-- **Connected to:** Fighter._try_actions() calls this for support input
-
-#### 5. SupportSystem._apply_support_effect(effect: Dictionary)
-- **What it does:** Applies a support effect (instant or duration)
-- **Connected to:** SupportSystem.try_call_support() calls this after verifying the call
-
-#### 6. SupportSystem._apply_instant_effect(effect: Dictionary)
-- **What it does:** Applies an instant support effect (like a projectile or melee hit)
-- **Connected to:** SupportSystem._apply_support_effect() calls this for instant effects
-
-#### 7. SupportSystem._apply_duration_effect(effect: Dictionary)
-- **What it does:** Applies a duration-based support effect (like a damage buff)
-- **Connected to:** SupportSystem._apply_support_effect() calls this for duration effects
-
-#### 8. SupportSystem._remove_effect(effect: Dictionary)
-- **What it does:** Removes an active duration effect when its timer expires
-- **Connected to:** SupportSystem._process() calls this when effect timers reach zero
-
-#### 9. SupportSystem.get_damage_multiplier() -> float
-- **What it does:** Gets the combined damage multiplier from active damage buff effects
-- **Connected to:** Fighter damage calculation might use this
-
-#### 10. SupportSystem.get_cooldown_remaining(slot: int) -> float
-- **What it does:** Gets remaining cooldown for a specific support slot
-- **Connected to:** Fighter UI might use this for support cooldown display
-
-#### 11. SupportSystem.is_support_ready(slot: int) -> bool
-- **What it does:** Checks if a support in a specific slot is ready to be used
-- **Connected to:** Fighter._try_actions() calls this for support input
-
-#### 12. SupportSystem.reset()
-- **What it does:** Resets all supports to ready state and clears active effects
-- **Connected to:** ArenaManager._start_match() might call this for new matches
-
-### ArenaManager Functions
-
-#### 1. ArenaManager._setup()
-- **What it does:** Sets up the game: registers input handlers, builds arena and juice, instantiates HUD and character select
-- **Connected to:** Godot engine calls this via call_deferred() from _ready()
-
-#### 2. ArenaManager._build_arena(root: Node)
-- **What it does:** Builds the game arena with background, floor, walls, and colliders
-- **Connected to:** ArenaManager._setup() calls this
-
-#### 3. ArenaManager._build_juice(root: Node)
-- **What it does:** Sets up camera, sound effects, and visual juicing (flash effect)
-- **Connected to:** ArenaManager._setup() calls this
-
-#### 4. ArenaManager._start_match(p1_id: String, p2_id: String)
-- **What it does:** Starts a new match with the specified fighters (handles CPU prefixes)
-- **Connected to:** ArenaManager._setup() and _on_selection_applied() call this
-
-#### 5. ArenaManager._fighter_data(fighter_id: String) -> Dictionary
-- **What it does:** Looks up fighter data in the ROSTER constant
-- **Connected to:** Various ArenaManager methods call this to get fighter info
-
-#### 6. ArenaManager._roster_index(fighter_id: String) -> int
-- **What it does:** Gets the index of a fighter in the ROSTER constant
-- **Connected to:** ArenaManager._setup() and _start_match() call this for character select
-
-#### 7. ArenaManager._attach_ai(fighter: Fighter, target: Fighter, difficulty: String)
-- **What it does:** Attaches an AI controller to a fighter for CPU control
-- **Connected to:** ArenaManager._start_match() calls this for CPU fighters
-
-#### 8. ArenaManager._on_died(loser: Fighter)
-- **What it does:** Handles a fighter dying (shows winner banner, pauses fighters)
-- **Connected to:** Fighter.died signal connects to this
-
-#### 9. ArenaManager._on_got_hit(info: Dictionary)
-- **What it does:** Handles a fighter getting hit (screen shake, audio, VFX, damage numbers)
-- **Connected to:** Fighter.got_hit signal connects to this
-
-#### 10. ArenaManager._on_fighter_event(kind: String, pos: Vector2)
-- **What it does:** Handles fighter events (jump, dash, attack, etc.) for audio feedback
-- **Connected to:** Fighter.event signal connects to this
-
-#### 11. ArenaManager._on_selection_applied(p1_id: String, p2_id: String)
-- **What it does:** Handles when character selection is confirmed (starts the match)
-- **Connected to:** CharacterSelect.start_requested signal connects to this
-
-#### 12. ArenaManager._on_selection_cancelled()
-- **What it does:** Handles when character selection is cancelled (hides select menu)
-- **Connected to:** CharacterSelect.cancel_requested signal connects to this
-
-#### 13. ArenaManager._on_mode_changed(is_pvp: bool)
-- **What it does:** Handles when the game mode checkbox is toggled
-- **Connected to:** CharacterSelect.mode_changed signal connects to this
-
-#### 14. ArenaManager._unhandled_input(event: InputEvent)
-- **What it does:** Handles unhandled input (Tab for character select, R for restart)
-- **Connected to:** Godot engine calls this for unhandled input events
-
-### HUD Functions
-
-#### 1. HUD._ready()
-- **What it does:** Initializes the HUD (sets up help panel styling)
-- **Connected to:** Godot engine calls this when the node enters the scene tree
-
-#### 2. HUD._style_help()
-- **What it does:** Styles the help panel (controls hint) with outline and background
-- **Connected to:** HUD._ready() calls this
-
-#### 3. HUD.bind(a: Fighter, b: Fighter, name1: String, name2: String)
-- **What it does:** Binds two fighters to the HUD for display
-- **Connected to:** ArenaManager._start_match() calls this after spawning fighters
-
-#### 4. HUD.show_banner(text: String)
-- **What it does:** Shows a banner message (for round winners)
-- **Connected to:** ArenaManager._on_died() calls this to show winner banner
-
-#### 5. HUD._process(_delta: float)
-- **What it does:** Updates each frame from bound fighters' stats
-- **Connected to:** Godot engine calls this each frame
-
-#### 6. HUD.fighter_hud.tscn (P1 and P2 blocks)
-- **What it does:** Displays individual fighter stats (HP, stamina, status, skills)
-- **Connected to:** HUD.bind() sets up these instances, FighterHUD.update_from() updates them
-
-### FighterHUD Functions (in fighter_hud.tscn)
-
-#### 1. FighterHUD.setup(name: String, is_p2: Boolean, color: Color)
-- **What it does:** Initializes the fighter HUD with name, side indicator, and color
-- **Connected to:** HUD.bind() calls this on instantiation
-
-#### 2. FighterHUD.update_from(fighter: Fighter)
-- **What it does:** Updates the HUD display from a fighter's current stats
-- **Connected to:** HUD._process() calls this each frame for each bound fighter
-
-### ScreenShake Functions (`screen_shake.gd`) - **Phase 4**
-
-#### 1. ScreenShake.shake(strength: float, frames: int)
-- **What it does:** Triggers a screen shake. Only overrides current shake if new strength >= current effective strength. Sets amp, total frames, and frames_left.
-- **Connected to:** ArenaManager._on_got_hit() (damage-based), ArenaManager._on_fighter_event() (ultimate)
-
-#### 2. ScreenShake._physics_process(_delta: float)
-- **What it does:** Updates offset each frame: random vector * amp * (frames_left/total). Decays linearly to zero.
-- **Connected to:** Godot engine calls this each physics frame
-
-### HitVfx Functions (`hit_vfx.gd`) - **Phase 4**
-
-#### 1. HitVfx.spawn(parent: Node, info: Dictionary) (static)
-- **What it does:** Factory method - creates HitVfx instance, positions at info.pos, adds to parent, calls burst()
-- **Connected to:** ArenaManager._on_got_hit() calls this for every hit
-
-#### 2. HitVfx.burst(info: Dictionary)
-- **What it does:** Spawns ring + element-specific particle emitters + super-effective gold burst if mult > 1.0. Sets up 1.2s auto-free timer.
-- **Connected to:** HitVfx.spawn() calls this immediately
-
-#### 3. HitVfx._emitter(count, c1, c2, vmin, vmax, grav, smin, smax, life, spread, dir)
-- **What it does:** Creates and configures a CPUParticles2D with given parameters for particles/sparks/ring
-- **Connected to:** HitVfx.burst() calls this 2-3 times per hit
-
-#### 4. HitVfx._process(delta: float)
-- **What it does:** Increments ring_t, queues redraw for ring animation
-- **Connected to:** Godot engine calls each frame
-
-#### 5. HitVfx._draw()
-- **What it does:** Draws expanding ring (arc) for 0.18s, fading out
-- **Connected to:** Godot engine calls when redraw queued
-
-### DamageNumber Functions (`damage_number.gd`) - **Phase 4**
-
-#### 1. DamageNumber.spawn(parent: Node, info: Dictionary) (static)
-- **What it does:** Factory - creates Label, sets text/color/outline/size from info (dmg, mult, heavy, ko), positions, adds tweens for rise/pop/fade, auto-frees
-- **Connected to:** ArenaManager._on_got_hit() calls this for every hit
-
-#### 2. DamageNumber._damage_color(mult: float, ko: bool) -> Color (static)
-- **What it does:** Returns color: KO=red, super-effective=gold, resisted=muted grey, normal=white
-- **Connected to:** DamageNumber.spawn() calls this
-
-### Sfx Functions (`sfx.gd`) - **Phase 4**
-
-#### 1. Sfx._ready()
-- **What it does:** Creates pool of 12 AudioStreamPlayer2D instances, sets max_distance=4000
-- **Connected to:** Godot engine calls on node enter tree
-
-#### 2. Sfx.play(sound: String, pos: Vector2, volume_db: float, pitch: float)
-- **What it does:** Loads/caches stream from assets/audio/<name>.wav, finds free player, sets pos/volume/pitch, plays. Missing files silently skipped.
-- **Connected to:** ArenaManager._on_got_hit() (hit sounds), ArenaManager._on_fighter_event() (gameplay sounds)
-
-## Signal Connections
-
-### Fighter Signals
-- **died(fighter)** → ArenaManager._on_died()
-- **got_hit(info: Dictionary)** → ArenaManager._on_got_hit()
-- **event(kind: String, pos: Vector2)** → ArenaManager._on_fighter_event()
-
-### SynergySystem Signals
-- **burst_activated(player_id: int)** → Fighter._on_burst_activated()
-- **burst_ended(player_id: int)** → Fighter._on_burst_ended()
-- **ultimate_ready(player_id: int)** → Fighter._on_ultimate_ready()
-- **ultimate_used(player_id: int)** → Fighter._on_ultimate_used()
-- **gauge_changed(player_id: int, value: float, max_value: float)** → (Possibly UI or debug)
-
-### SupportSystem Signals
-- **support_called(player_id: int, support_id: String)** → Fighter._on_support_called()
-- **support_ready(player_id: int, slot: int)** → (Possibly UI for support readiness)
-- **support_cooldown(player_id: int, slot: int, time: float)** → (Possibly UI for support cooldown)
-
-### CharacterSelect Signals (connected to ArenaManager)
-- **start_requested(p1_id: String, p2_id: String)** → ArenaManager._on_selection_applied()
-- **cancel_requested** → ArenaManager._on_selection_cancelled()
-- **mode_changed(is_pvp: bool)** → ArenaManager._on_mode_changed()
-
-## Data Structures and Containers
-
-### 1. Fighter Variables
-- **var input: InputHandler** - Composition: Fighter owns its input handler
-- **var stats: StatsComponent** - Composition: Fighter owns its stats component
-- **var sm: StateMachine** - Composition: Fighter owns its state machine
-- **var synergy: SynergySystem** - Composition: Fighter owns its synergy system
-- **var support: SupportSystem** - Composition: Fighter owns its support system
-- **var hitbox: Area2D, hurtbox: Area2D** - Nodes for collision detection
-- **var move_fx: Sprite2D** - Node for move effects
-- **var burn_icon, slow_icon, poison_icon: Sprite2D** - Nodes for status indicators
-- **var sprite: AnimatedSprite2D** - Node for visual representation
-- **var hit_targets: Array, hit_counts: Dictionary** - Tracks hit confirmation for move canceling
-- **var cooldowns: Dictionary** - Tracks special move cooldowns
-- **var cur_move: Dictionary, cur_key: String** - Tracks current move being executed
-- **var move_inv: Boolean, move_iframes_left: int** - Tracks move invincibility frames
-- **var rooted_time: float** - Tracks time rooted from moves
-- **var tech_cd: float, tech_since_land: int** - Tracks tech cooldown and window
-- **var wavedash_left: int** - Tracks wavedash glide frames
-- **var air_dashed: Boolean** - Tracks if air dash used this jump
-- **var stun_air: Boolean** - Tracks if launched into air during hitstun
-- **var di_input: float** - Stores directional influence input during hitstun
-- **var next_damage_buff: float, next_hitstun_mult: float** - Tracks pending buffs from synergy/support
-- **var freeze_frames: int** - Tracks hitstop freeze frames
-- **var hit_confirmed: Boolean** - Tracks if current move has connected (for canceling)
-- **var projectile_block: Boolean** - Tracks if fighter is blocking projectiles
-- **var counter_active: Boolean** - Tests if counter window is active
-- **var move_spawned: int, move_teleported: bool** - Tracks if move has spawned projectiles/teleported
-- **var dive_active: Boolean, dive_end: int** - Tracks dive move state
-
-### 2. StatsComponent Variables
-- **var max_hp := 100.0, hp := 100.0** - Health points
-- **var max_stamina := 100.0, stamina := 100.0** - Stamina points
-- **var base_speed := 260.0** - Base movement speed
-- **var element: Element = Element.NORMAL** - Primary (attack) type
-- **var types: Array = []** - All types (1 or 2) used when defending
-- **var exhausted := false** - Stamina exhaustion flag
-- **var burn_left := 0, burn_phase := 0** - Burn status effect timers
-- **var poison_left := 0, poison_phase := 0** - Poison status effect timers
-- **var slow_left := 0** - Slow status effect timer
-
-### 3. InputHandler Variables
-- **var prefix := "p1"** - Input prefix ("p1_" or "p2_")
-- **var remote := false** - Whether input is coming from network (future feature)
-- **var enabled := true** - Whether input processing is enabled
-- **var hold_buffers := false** - Whether to hold input buffers during move recovery
-- **var hold_all := false** - Whether to hold all input buffers (during hitstop)
-- **var move_x := 0.0** - Horizontal axis value (-1 to 1)
-- **var jump_held := false** - Whether jump button is currently held
-- **var buffer := {"jump": 0, "dash": 0, "attack": 0, "special1": 0, "special2": 0, "ultimate": 0, "support": 0, "support_2": 0, "support_3": 0}** - Input buffer frames for each action
-
-### 4. SynergySystem Variables
-- **var player_id: int = 1** - Which player this system belongs to
-- **var gauge: float = 0.0** - Current burst gauge value (0-1000)
-- **var state: BurstState = BurstState.READY** - Current burst state
-- **var burst_timer: float = 0.0** - Time remaining in current burst
-- **var cooldown_timer: float = 0.0** - Time remaining before gauge can refill
-- **var ultimate_used_this_burst: bool = false** - Whether ultimate used in current burst
-- **var passive_fill_enabled: bool = true** - Whether passive gauge fill is enabled
-- **var fill_multiplier_hit := 1.0, fill_multiplier_dealt := 1.0, fill_multiplier_taken := 1.0, fill_multiplier_passive := 1.0** - Archetype-specific fill multipliers
-
-### 5. SupportSystem Variables
-- **var player_id: int = 1** - Which player this system belongs to
-- **var selected_supports: Array = []** - Array of support IDs (max 3)
-- **var cooldowns: Dictionary = {}** - Cooldown timers for each support slot
-- **var active_effects: Array = []** - Currently active duration-based support effects
-
-### 6. ArenaManager Variables
-- **var p1: Fighter, var p2: Fighter** - The two fighters in the current match
-- **var hud** - The HUD instance
-- **var select_menu** - The character select menu instance
-- **var combat_root: Node2D** - Root node for all combat objects (fighters, projectiles, etc.)
-- **var over: Boolean** - Whether the match is over
-- **var camera: ArenaCamera** - The dynamic camera
-- **var sfx: Sfx** - The sound effects manager
-- **var flash: ColorRect** - The full-screen flash effect
-- **var selected_p1 = "marshadow", var selected_p2 = "gholdengo"** - Currently selected fighters
-- **var cpu_mode := false** - Whether CPU mode is enabled (from character select)
-- **var current_mode: String = "pvp"** - Current game mode ("pvp", "pvcpu", "cpuvcpu")
-- **var p1_difficulty: String = "medium", var p2_difficulty: String = "medium"** - AI difficulty settings
-- **const ROSTER := [...]** - List of available fighters with their scenes, sheets, and colors
-
-### 7. HUD Variables
-- **@onready var root: Control = $Root** - Root container node
-- **@onready var p1_hud = $Root/P1** - P1 fighter HUD block
-- **@onready var p2_hud = $Root/P2** - P2 fighter HUD block
-- **@onready var banner: Label = $Root/Banner** - Banner label for round announcements
-- **@onready var help_panel: PanelContainer = $Root/HelpPanel** - Panel containing controls hint
-- **@onready var help: Label = $Root/HelpPanel/Help** - Label for controls hint text
-- **var f1: Fighter, var f2: Fighter** - The two bound fighters
-
-### 8. FighterHUD Variables (in fighter_hud.tscn)
-- **Various nodes for HP bar, stamina bar, skill slots, status icons, name label, etc.**
-
-### 9. ScreenShake Variables (`screen_shake.gd`) - **Phase 4**
-- **var amp := 0.0** - Current shake amplitude
-- **var frames_left := 0** - Remaining frames in current shake
-- **var total := 1** - Total frames for current shake (for decay calculation)
-
-### 10. HitVfx Variables (`hit_vfx.gd`) - **Phase 4**
-- **var ring_t := 0.0** - Ring animation timer
-- **var ring_color := Color.WHITE** - Ring color (from element style)
-- **var ring_size := 26.0** - Base ring size (scaled by hit severity)
-- **const STYLE** - 13-element particle style dictionary
-
-### 11. DamageNumber Variables (`damage_number.gd`) - **Phase 4**
-- Uses Label properties (text, modulate, position, scale, rotation) via tweens
-
-### 12. Sfx Variables (`sfx.gd`) - **Phase 4**
-- **var cache := {}** - Loaded AudioStream cache (name -> stream)
-- **var players: Array** - Pool of 12 AudioStreamPlayer2D instances
-- **const DIR := "res://assets/audio/"** - Sound file directory
-- **const POOL := 12** - Pool size
-
-## Summary of Key Relationships
-
-### Composition Relationships (1:1)
-- Fighter ↔ InputHandler
-- Fighter ↔ StatsComponent  
-- Fighter ↔ StateMachine
-- Fighter ↔ SynergySystem
-- Fighter ↔ SupportSystem
-
-### Management Relationships (1:Many or Many:1)
-- ArenaManager ↔ Fighters (1:2)
-- ArenaManager ↔ HUD (1:1)
-- ArenaManager ↔ CharacterSelect (1:1)
-- ArenaManager ↔ ArenaCamera (1:1)
-- ArenaManager ↔ Sfx (1:1)
-- ArenaManager ↔ ScreenShake (1:1) - **Phase 4**
-- ArenaManager ↔ HitVfx (1:Many, spawned per hit) - **Phase 4**
-- ArenaManager ↔ DamageNumber (1:Many, spawned per hit) - **Phase 4**
-- ArenaManager ↔ Flash ColorRect (1:1) - **Phase 4**
-- Fighter ↔ Projectiles/Trap (1:Many)
-- Fighter ↔ Status Effect Icons (1:3)
-- Fighter ↔ Move Effect Sprite (1:1)
-
-### Signal Connections
-- Fighter.died → ArenaManager._on_died()
-- Fighter.got_hit → ArenaManager._on_got_hit()
-- Fighter.event → ArenaManager._on_fighter_event()
-- SynergySystem.burst_activated → Fighter._on_burst_activated()
-- SynergySystem.burst_ended → Fighter._on_burst_ended()
-- SynergySystem.ultimate_ready → Fighter._on_ultimate_ready()
-- SynergySystem.ultimate_used → Fighter._on_ultimate_used()
-- SupportSystem.support_called → Fighter._on_support_called()
-- CharacterSelect.start_requested → ArenaManager._on_selection_applied()
-- CharacterSelect.cancel_requested → ArenaManager._on_selection_cancelled()
-- CharacterSelect.mode_changed → ArenaManager._on_mode_changed()
-
-### Inheritance Relationships
-- Fighter_* → Fighter (all fighter archetypes inherit from base Fighter class)
-- StateMachine → Node (Godot base class)
-- SynergySystem → Node (Godot base class)
-- SupportSystem → Node (Godot base class)
-- InputHandler → Node (Godot base class)
-- Fighter → CharacterBody2D (Godot physics body)
-- HUD → CanvasLayer (Godot UI layer)
-- FighterHUD → Various Control nodes (Godot UI elements)
-- Projectile/Area2D → Node2D/Area2D (Godot physics nodes)
-- AIController/AIBehavior/AIProfile → Node (Godot base class)
-- ScreenShake → Camera2D (Godot camera) - **Phase 4**
-- HitVfx → Node2D (Godot 2D node) - **Phase 4**
-- DamageNumber → Label (Godot UI) - **Phase 4**
-- Sfx → Node2D (Godot 2D node) - **Phase 4**
-
-This structure shows a clean, modular design where each fighter is a self-contained unit with its own subsystems for input, stats, state management, synergy, and support, all coordinated by the central ArenaManager which handles the game flow, arena, and cross-fighter interactions. **Phase 4** adds comprehensive visual/audio feedback (hitstop, screen shake, elemental VFX, damage numbers, positional audio) and cancel chains for deeper combat mechanics.
+# Structures and functions
+
+Generated from the code on the restructured project. The descriptions are the first doc comment in each file.
+To regenerate, use the scan in `docs/ARCHITECTURE.md` (names, signals, constants, functions). Hand-written reasoning lives in `CONNECTIONS_LIST.md`.
+
+## Files and classes
+
+### Fighter model (core/)
+
+#### `core/fighter.gd`
+- class `Fighter`, extends `CharacterBody2D`
+- Base fighter. Archetypes subclass this and override _apply_archetype()
+- signals: `died`, `got_hit`, `event`, `status_damaged`
+- constants: `WALL_LEFT_X`, `WALL_RIGHT_X`, `BODY_RADIUS`, `GRAVITY_RISE`, `GRAVITY_FALL`, `JUMP_CUT`, `GROUND_ACCEL`, `AIR_ACCEL`, `ATTACK_STAMINA_GAIN`, `HITSTUN_FRAMES`, `HITSTOP_SCALE`, `KO_HITSTOP`, `AERIAL_ATTACK_PUSH`, `AERIAL_HOP`, `AERIAL_KB_Y`, `AERIAL_ANGLE`, `AERIAL_ON`, `AERIAL_ACTIVE`, `AERIAL_MIN_ACTIVE`, `AERIAL_LAND_LAG`, `AERIAL_DOWN_PUSH`, `AERIAL_DOWN_HOP`, `AERIAL_DOWN_ANGLE`, `AERIAL_DOWN_KB_Y`, `AERIAL_DOWN_POP_Y`, `AERIAL_DOWN_MIN_ACTIVE`, `AERIAL_DOWN_LAND_LAG`, `DOWN_CUT_SPEED`, `DOWN_CUT_STEP`, `FAST_FALL_CAP`, `DI_INFLUENCE`, `TECH_PRESS_FRAMES`, `TECH_COST`, `TECH_WINDOW`, `TECH_IFRAMES`, `TECH_RECOVERY`, `TECH_COOLDOWN`, `WAVE_DMG_MULT`, `COYOTE_FRAMES`, `DOWN_VARIANT_KEYS` ...
+- functions: `arena_x`, `get_types`, `_apply_archetype`, `_define_moves`, `_define_moves_default`, `_derive_down_variant`, `_ultimate_press`, `_ultimate_locked`, `ult_meter`, `_move_data`, `mv`, `variant`, `configure`, `_ready`, `_physics_process`, `cooldown_ratio`, `_gravity`, `_steer`, `_try_actions`, `_restore_hurtbox`, `_hitbox_off`, `_check_hits`, `receive_hit`, `_hitstop_frames`, `_apply_status`, `take_dot`, `_check_death`, `_on_burst_activated`, `_on_burst_ended`, `_on_ultimate_ready`, `_on_ultimate_used`, `_on_support_called`, `_enter_move`, `_move_animation_profile`, `_run_move`, `_aerial_motion`, `_try_special_cancel`, `_finish_move`, `_move_dive`, `_spawn_scheduled`, `current_label`, `_labelled`, `_spawn_projectile`, `_spawn_trap`, `_end_move`, `state_idle`, `state_run`, `state_jump`, `_wavedash`, `enter_dash`, `state_dash`, `exit_dash`, `enter_attack`, `state_attack`, `exit_attack`, `enter_special1`, `state_special1`, `exit_special1`, `enter_special2`, `state_special2` ...
+
+#### `core/input_handler.gd`
+- class `InputHandler`, extends `Node`
+- Separated from the Fighter so a NetworkManager can later feed remote input
+- constants: `BUFFER_WINDOWS`, `COMBAT_ACTIONS`, `DOWN_LATCH_FRAMES`
+- functions: `_input`, `poll`, `decay_buffers`, `want`, `fresh`, `wants_down`, `consume`, `clear`, `register_actions`
+
+#### `core/projectile.gd`
+- class `Projectile`, extends `Node2D`
+- Data-driven projectile. All numbers come from the casting move's dictionary
+- constants: `WORLD_GRACE_FRAMES`
+- functions: `setup`, `_ready`, `_physics_process`
+
+#### `core/state_machine.gd`
+- class `StateMachine`, extends `Node`
+- Calls fighter.state_<name>(delta) each tick, plus optional
+- functions: `start`, `change`, `tick`, `_hook`
+
+#### `core/stats_component.gd`
+- class `StatsComponent`, extends `Node`
+- signals: `burn_ticked`, `poison_ticked`
+- constants: `DASH_COST`, `REGEN_PER_SEC`, `RECOVER_AT`, `BURN_DAMAGE`, `BURN_TICKS`, `POISON_DAMAGE`, `POISON_TICKS`, `SLOW_FACTOR`, `SLOW_TIME`, `SUPER`, `RESIST`, `IMMUNE`, `FPS`
+- functions: `_ready`, `tick`, `can_spend`, `spend`, `gain_stamina`, `tick_statuses`, `apply_burn`, `apply_poison`, `apply_slow`, `burning`, `poisoned`, `slowed`, `get_speed`, `clear_statuses`, `type_multiplier`
+
+#### `core/support_system.gd`
+- class `SupportSystem`, extends `Node`
+- Manages Support Pokémon calls - assist attacks, buffs, and utility.
+- signals: `support_called`, `support_ready`, `support_cooldown`
+- constants: `MAX_SUPPORTS`, `BASE_COOLDOWN`
+- functions: `get_support_definition`, `_ready`, `set_player`, `set_supports`, `_process`, `try_call_support`, `_apply_support_effect`, `_apply_instant_effect`, `_apply_duration_effect`, `_remove_effect`, `get_damage_multiplier`, `get_cooldown_remaining`, `is_support_ready`, `reset`
+
+#### `core/synergy_system.gd`
+- class `SynergySystem`, extends `Node`
+- Manages Synergy Burst gauge, Burst Mode activation, and One-Time Ultimate gating.
+- signals: `burst_activated`, `burst_ended`, `ultimate_ready`, `ultimate_used`, `gauge_changed`
+- constants: `GAUGE_MAX`, `GAUGE_FILL_ON_HIT`, `GAUGE_FILL_ON_DEALT`, `GAUGE_FILL_ON_TAKEN`, `GAUGE_FILL_PASSIVE`, `BURST_DURATION`, `BURST_COOLDOWN`, `ULTIMATE_COST`
+- functions: `_ready`, `set_player`, `set_archetype_traits`, `_process`, `_fill_gauge`, `on_hit_connect`, `on_damage_dealt`, `on_damage_taken`, `try_activate_burst`, `_end_burst`, `try_use_ultimate`, `get_burst_time_remaining`, `get_cooldown_remaining`, `is_burst_active`, `is_ultimate_available`, `reset`
+
+#### `core/trap.gd`
+- class `Trap`, extends `Node2D`
+- Static ground hazard. By default lasts 3 s and springs once on an enemy.
+- functions: `setup`, `_ready`, `_set_visual_size`, `_set_frame`, `_physics_process`
+
+### Fighters (fighters/)
+
+#### `fighters/alakazam/fighter_alakazam.gd`
+- no class_name, extends `Fighter`
+- Alakazam (Psychic): tricky zoner. Psybeam bursts, a bouncing Psywave, Future Sight traps, Reflect stance.
+- functions: `_apply_archetype`, `_define_moves`
+
+#### `fighters/blaziken/fighter_blaziken.gd`
+- no class_name, extends `Fighter`
+- Blaziken (Fire/Fighting): aggressive aerial fighter. High jump; rising kick and dive kick.
+- functions: `_apply_archetype`, `_define_moves`
+
+#### `fighters/decidueye/fighter_decidueye.gd`
+- no class_name, extends `Fighter`
+- Decidueye (Grass/Ghost): long-range zoner. Low HP, screen-crossing arrows, leafy trap.
+- functions: `_apply_archetype`, `_define_moves`
+
+#### `fighters/gengar/fighter_gengar.gd`
+- no class_name, extends `Fighter`
+- Gengar (Ghost/Poison): tricky evasive zoner. Floaty jumps, shadow balls, poison trap.
+- functions: `_apply_archetype`, `_define_moves`
+
+#### `fighters/gholdengo/fighter_gholdengo.gd`
+- no class_name, extends `Fighter`
+- Gholdengo (Steel/Ghost): mid-range zoner. Surfboard swings and gold-coin projectiles.
+- functions: `_apply_archetype`, `_define_moves`
+
+#### `fighters/greninja/fighter_greninja.gd`
+- no class_name, extends `Fighter`
+- Greninja (Water/Dark): high-mobility zoner. Huge jump, fast fall, water blades and shurikens.
+- functions: `_apply_archetype`, `_define_moves`
+
+#### `fighters/lucario/fighter_lucario.gd`
+- no class_name, extends `Fighter`
+- Lucario (Fighting/Steel): combo rushdown. Bone Rush strings, aura projectiles, Swords Dance, Extreme Speed.
+- functions: `_apply_archetype`, `_define_moves`
+
+#### `fighters/marshadow/fighter_marshadow.gd`
+- no class_name, extends `Fighter`
+- Marshadow (Ghost/Fighting): fast close-range assassin. Extended shadow dash (more i-frames, sinks into the floor).
+- functions: `_apply_archetype`, `_define_moves`
+
+#### `fighters/mewtwo/fighter_mewtwo.gd`
+- no class_name, extends `Fighter`
+- Mewtwo (Psychic): balanced boss. Ultimate = Mega Mewtwo Y Awakening, and only that: the ULT key starts Burst
+- constants: `AWAKEN_COST`, `AWAKEN_FRAMES`, `BALL_TEX`, `BALL_BODY`, `BALL_FLOAT`, `MEGA_SHEET`
+- functions: `_apply_archetype`, `_define_moves`, `_awakened_moves`, `_awakened_cost`, `_ultimate_press`, `_ultimate_locked`, `ult_meter`, `_on_burst_activated`, `_physics_process`, `_start_awaken`, `_tick_awaken`, `_awaken_reveal`, `_end_awaken`, `_smooth`, `_on_burst_ended`, `_use_sheet`
+
+#### `fighters/placeholders/fighter_brawler.gd`
+- no class_name, extends `Fighter`
+- Fire-type melee bruiser: high HP, slow, heavy, big knockback.
+- functions: `_apply_archetype`, `_define_moves`
+
+#### `fighters/placeholders/fighter_zoner.gd`
+- no class_name, extends `Fighter`
+- Water-type ranged fighter: fragile, fast, high jump, projectile + trap.
+- functions: `_apply_archetype`, `_define_moves`
+
+#### `fighters/scizor/fighter_scizor.gd`
+- no class_name, extends `Fighter`
+- Scizor (Bug/Steel): rushdown brawler. Heavy gravity, fast cheap dashes, bullet-punch flurry.
+- functions: `_apply_archetype`, `_define_moves`
+
+#### `fighters/tinkaton/fighter_tinkaton.gd`
+- no class_name, extends `Fighter`
+- Tinkaton (Fairy/Steel): the heavy brawler. Very slow, huge hammer swings, big knockback and hitstun.
+- functions: `_apply_archetype`, `_define_moves`
+
+#### `fighters/toxicroak/fighter_toxicroak.gd`
+- no class_name, extends `Fighter`
+- Toxicroak (Poison/Fighting): evasive assassin. Poison jabs, Toxic Spikes, Sucker Punch, Venom Drag.
+- functions: `_apply_archetype`, `_define_moves`
+
+### Roster (roster/)
+
+#### `roster/roster.gd`
+- class `Roster`, extends `RefCounted`
+- THE roster: the one place that lists playable fighters.
+- constants: `ENTRIES`
+- functions: `entries`, `scene_path`, `script_path`, `sheet_path`, `profile_path`, `index_of`
+
+### AI (ai/)
+
+#### `ai/ai_behavior.gd`
+- class `AIBehavior`, extends `RefCounted`
+- Base class for behavior tree nodes. All nodes return Status enum.
+- functions: `tick`, `_reset`, `_get_delta`
+
+#### `ai/ai_controller.gd`
+- class `AIController`, extends `Node`
+- AI controller: a behaviour tree (fighters/<id>/profile.tres plus the personality trees below) that drives a fighter
+- constants: `DIFFICULTY_MULTIPLIERS`, `BASE_REACTION_TIME`, `BODY_RADIUS`, `FAR_RANGE`, `WHIFF_WINDOW`, `HOP_COOLDOWN`, `ZONING_JUMP_COOLDOWN`, `ZONING_SIGHT`, `PROJECTILE_MIN`, `PROJECTILE_MAX`, `TRAP_MAX`, `LOB_WINDOW`, `TRAP_LEAD`, `ATTACK_KEYS`, `MELEE_KINDS`, `LOG_MOVE_USAGE`, `RECENT_USES`, `WHIFF_MEMORY`, `WHIFF_BAN_FRAMES`
+- functions: `setup`, `_load_profile`, `_apply_difficulty`, `_build_behavior_tree`, `_build_engagement_tree`, `_build_aggressive_tree`, `_build_defensive_tree`, `_build_zoning_tree`, `_build_hit_and_run_tree`, `_build_tricky_tree`, `_build_balanced_tree`, `_always_true`, `_check_vine_followup`, `_check_vine_window`, `_walk_in`, `_has_opponent`, `_horizontal_gap`, `_melee_window`, `_opponent_toward`, `_melee_reach`, `_in_range`, `_variant_reaches`, `_usable_keys`, `_disfavored`, `_can_use`, `_can_connect`, `_self_transform`, `_ultimate_ready`, `_saving_stamina`, `_stamina_full`, `_may_dash`, `_roll_ultimate`, `_check_anti_air`, `_check_whiff_punish`, `_check_zoning_response`, `_get_zoning_action`, `set_target`, `_on_opponent_hit`, `_physics_process`, `_update_movement`, `_drop_stale_presses`, `_drive_movement`, `_update_whiff_tracking`, `_update_own_hits`, `_track_outcomes`, `_record_outcome`, `_banned`, `_pick_down`, `_tally_moves`, `_exit_tree`, `buffer_action`, `_cond`, `_act`, `_cd`, `_seq`
+
+#### `ai/ai_profile.gd`
+- class `AIProfile`, extends `Resource`
+- Data-driven AI configuration per fighter. Loaded from fighters/<fighter_id>/profile.tres (see roster/roster.gd)
+
+#### `ai/bt/bt_action.gd`
+- class `Action`, extends `AIBehavior`
+- Buffers an input action for the fighter. duration 0 = instant SUCCESS.
+- functions: `tick`, `_reset`
+
+#### `ai/bt/bt_condition.gd`
+- class `Condition`, extends `AIBehavior`
+- Evaluates a check (Callable returning bool).
+- functions: `tick`
+
+#### `ai/bt/bt_cooldown.gd`
+- class `Cooldown`, extends `AIBehavior`
+- Child only evaluated when the cooldown is ready.
+- functions: `tick`, `_reset`
+
+#### `ai/bt/bt_inverter.gd`
+- class `Inverter`, extends `AIBehavior`
+- functions: `tick`
+
+#### `ai/bt/bt_repeater.gd`
+- class `Repeater`, extends `AIBehavior`
+- functions: `tick`, `_reset`
+
+#### `ai/bt/bt_selector.gd`
+- class `Selector`, extends `AIBehavior`
+- Tries children left-to-right, returns first SUCCESS or RUNNING.
+- functions: `tick`
+
+#### `ai/bt/bt_sequence.gd`
+- class `Sequence`, extends `AIBehavior`
+- Runs children in order. FAILURE if any child fails, SUCCESS if all succeed.
+- functions: `tick`, `_reset`
+
+#### `ai/bt/bt_until_fail.gd`
+- class `UntilFail`, extends `AIBehavior`
+- functions: `tick`
+
+### Arena (arena/)
+
+#### `arena/arena_camera.gd`
+- class `ArenaCamera`, extends `Camera2D`
+- Tracks both fighters, adapts framing to their distance, and shakes on impact.
+- constants: `ZOOM_MIN`, `ZOOM_MAX`, `ZOOM_DISTANCE`, `ZOOM_SMOOTHING`, `POSITION_SMOOTHING`, `TRAUMA_DECAY`, `TRAUMA_SHAKE_MULT`, `MAX_TRAUMA`, `ARENA_RECT`
+- functions: `set_targets`, `shake`, `add_trauma`, `_physics_process`, `_process`
+
+#### `arena/arena_manager.gd`
+- no class_name, extends `Node`
+- Builds the arena, owns the selected matchup, HUD, and win/menu flow.
+- constants: `FLOOR_TOP`, `SHAKE_SCALE`, `ELEMENT_PITCH`, `EVENT_SOUNDS`
+- functions: `_ready`, `_setup`, `_setup_balance_slot`, `_current_match_ids`, `_fighter_data`, `_roster_index`, `_start_match`, `_attach_ai`, `_on_selection_applied`, `_on_main_menu_requested`, `_on_selection_cancelled`, `_on_mode_changed`, `_collider`, `_tile`, `_build_arena`, `_add_side_tag`, `_on_died`, `_build_juice`, `_on_got_hit`, `_on_fighter_event`, `_unhandled_input`
+
+#### `arena/damage_number.gd`
+- class `DamageNumber`, extends `Label`
+- Floating damage popup. Gold for super-effective hits, muted for resisted hits.
+- functions: `spawn`, `_damage_color`
+
+#### `arena/hit_vfx.gd`
+- class `HitVfx`, extends `Node2D`
+- One-shot elemental hit burst: impact ring + sparks + an element-flavoured
+- constants: `E`, `STYLE`
+- functions: `spawn`, `burst`, `_emitter`, `_process`, `_draw`
+
+#### `arena/sfx.gd`
+- class `Sfx`, extends `Node2D`
+- Tiny positional sound player. Streams are looked up by name in
+- constants: `DIR`, `POOL`
+- functions: `_ready`, `play`
+
+### UI (ui/)
+
+#### `ui/animated_portrait.gd`
+- class `AnimatedPortrait`, extends `TextureRect`
+- Animated portrait using fighter's sprite sheet idle animation.
+- functions: `_ready`, `_setup_animation`, `_on_frame_advance`, `set_fighter`, `stop`, `start`
+
+#### `ui/character_select.gd`
+- class `CharacterSelect`, extends `CanvasLayer`
+- Fighter select screen, laid out like the Smash Bros select:
+- signals: `start_requested`, `cancel_requested`, `main_menu_requested`, `mode_changed`
+- constants: `Keybinds`, `ROW_LENGTH`, `TILE_SIZE`, `TILE_PORTRAIT`, `TILE_NAME_HEIGHT`, `GRID_HEIGHT`, `CARD_PORTRAIT`, `CARD_HEIGHT`, `CARD_MARGIN`, `P1_COLOR`, `P2_COLOR`, `GOLD`, `DIM_BORDER`, `READY_COLOR`, `STAT_FLOOR`, `STAT_KEYS`, `STAT_LABELS`, `MOVE_KEYS`, `MOVE_TITLES`, `DIFFICULTIES`
+- functions: `_ready`, `_load_roster_from_arena`, `open_select`, `mode_is_cpu`, `mode_name`, `_build_ui`, `_build_grid`, `_add_tile`, `_badge`, `_make_card`, `_refresh_all`, `_mode_text`, `_refresh_tiles`, `_refresh_card`, `_refresh_start_button`, `_fill_types`, `_fill_moves`, `_move_detail`, `_side_color`, `_side_title`, `_side_tag`, `_is_cpu_side`, `_is_ready`, `_data_instance`, `_fighter_info`, `_hit_count`, `_stat_fill`, `_on_p1_ready`, `_on_p2_ready`, `_toggle_side`, `_cycle_level`, `_on_start`, `_on_back`, `_select_pressed`, `_can_start`, `_step`, `_move_cursor`, `_place_cursor`, `_scroll_to`, `_on_tile_input`, `_input`, `_label`, `_button`, `_readable`, `_pad`, `_spacer`, `_box`, `_clear`, `_punch`
+
+#### `ui/debug/balance_tool.gd`
+- no class_name, extends `CanvasLayer`
+- Developer balance tool. Ctrl+Shift+B opens a password prompt; type the password and press Enter to open the panel.
+- constants: `PASSWORD`, `MAX_GAME_SECONDS`, `MIN_LIMIT_SECONDS`, `MAX_LIMIT_SECONDS`, `MAX_REPEATS`, `SAMPLE_EVERY`, `EARLY_SECONDS`, `OUT_DIR`, `DEFAULT_MATCH_SECONDS`, `MAX_SLOTS`, `SLOT_SIZE`, `RENDER_SLOTS_PER_FRAME`
+- functions: `attach`, `_build_password_page`, `_build_main_page`, `_build_side_list`, `_title`, `_hint`, `_refresh`, `_refresh_estimate`, `_picked`, `_selected_pairs`, `_set_list`, `_on_pick_changed`, `_on_repeats_changed`, `_on_limit_changed`, `_on_swap_changed`, `_input`, `_key_password`, `_open_password`, `_close`, `_stop_pressed`, `_run_pressed`, `_run`, `_worker`, `_wait_host_ready`, `_progress_text`, `_rate`, `_farm_open`, `_render_mode`, `_process`, `_on_show_toggled`, `_farm_close`, `_toggle_panel`, `_on_slots_changed`, `_ai_of`, `_play`, `_refresh_live`, `_usage`, `_share`, `_sample`, `_track_moves`, `_finish_use`, `_bump`, `_on_side_died`, `_on_side_status`, `_on_side_event`, `_on_side_hit`, `_dealt_by_move`, `_early_taken`, `_build_report`, `_add_side`, `_write_files`, `_sum`
+
+#### `ui/debug/input_debug.gd`
+- no class_name, extends `CanvasLayer`
+- F2 key test. Shows which game actions the engine currently sees as pressed, plus a log of the last raw key
+- constants: `Keybinds`, `GAME_ACTIONS`, `LOG_LINES`
+- functions: `_ready`, `_input`, `_process`
+
+#### `ui/fighter_hud.gd`
+- no class_name, extends `MarginContainer`
+- One player's HUD block. Layout is entirely container-driven; this script
+- functions: `_text`, `_style_bar`, `_reverse`, `setup`, `update_from`
+
+#### `ui/hud.gd`
+- no class_name, extends `CanvasLayer`
+- Container-driven HUD: P1 block anchored top-left, P2 mirrored top-right,
+- constants: `GameText`
+- functions: `_ready`, `refresh_help`, `_style_help`, `bind`, `show_banner`, `_process`
+
+#### `ui/main_menu.gd`
+- no class_name, extends `CanvasLayer`
+- functions: `_ready`, `_on_play`, `_on_characters`, `_change_to_arena`, `_on_options`, `_on_quit`
+
+#### `ui/options_menu.gd`
+- no class_name, extends `CanvasLayer`
+- functions: `_ready`, `_on_difficulty_changed`, `_on_master_changed`, `_on_sfx_changed`, `_on_music_changed`, `_on_back`
+
+#### `ui/player_tag.gd`
+- no class_name, extends `Label`
+- Floating tag above a fighter, such as "P1 · GENGAR", so you can tell which player is which
+- constants: `LIFT`
+- functions: `setup`, `_process`
+
+#### `ui/skill_slot.gd`
+- no class_name, extends `Control`
+- Compact square ability slot. Fills bottom-up as the ability recharges;
+- functions: `set_state`, `_draw`
+
+### System (system/)
+
+#### `system/game_text.gd`
+- no class_name, extends `RefCounted`
+- Player-facing strings live here as constants. {action_name} placeholders are filled from the
+- constants: `Keybinds`, `HELP_P1`, `HELP_P2`, `HELP_FOOTER`, `WIN_BANNER`, `MODE_PVP`, `MODE_PVCPU`, `MODE_CPUVCPU`
+- functions: `mode_hint`, `controls_help`, `win_banner`
+
+#### `system/keybinds.gd`
+- no class_name, extends `RefCounted`
+- (No class_name on purpose: other scripts preload this file, so it works without an editor rescan.)
+- constants: `BINDINGS`, `EXTRA`
+- functions: `register`, `_add_key`, `rebind`, `key_name`, `fmt`
+
+#### `system/settings.gd`
+- no class_name, extends `Node`
+- Persistent settings singleton. Saves to user://settings.cfg
+- constants: `SETTINGS_PATH`
+- functions: `_ready`, `_apply_audio`, `_set_bus`, `load_settings`, `save_settings`, `_defaults`, `get_value`, `set_value`, `get_difficulty`, `set_difficulty`, `get_master_volume`, `set_master_volume`, `get_sfx_volume`, `set_sfx_volume`, `get_music_volume`, `set_music_volume`, `get_last_p1_fighter`, `set_last_p1_fighter`, `get_last_p2_fighter`, `set_last_p2_fighter`, `get_last_mode`, `set_last_mode`, `set_view_mode_only`, `get_view_mode_only`, `clear_view_mode_only`
+
+#### `system/ui_manager.gd`
+- no class_name, extends `Node`
+- Menu stack manager autoload. Handles showing/hiding menus with a navigation stack.
+- signals: `menu_changed`
+- functions: `show_menu`, `go_back`, `clear_stack`, `get_current_menu`
+
+## Signals
+
+| File | Signal | Parameters |
+|---|---|---|
+| `core/fighter.gd` | `died` | fighter |
+| `core/fighter.gd` | `got_hit` | info: Dictionary |
+| `core/fighter.gd` | `event` | kind: String, pos: Vector2 |
+| `core/fighter.gd` | `status_damaged` | info: Dictionary |
+| `core/stats_component.gd` | `burn_ticked` | amount: float |
+| `core/stats_component.gd` | `poison_ticked` | amount: float |
+| `core/support_system.gd` | `support_called` | player_id: int, support_id: String |
+| `core/support_system.gd` | `support_ready` | player_id: int, slot: int |
+| `core/support_system.gd` | `support_cooldown` | player_id: int, slot: int, time: float |
+| `core/synergy_system.gd` | `burst_activated` | player_id: int |
+| `core/synergy_system.gd` | `burst_ended` | player_id: int |
+| `core/synergy_system.gd` | `ultimate_ready` | player_id: int |
+| `core/synergy_system.gd` | `ultimate_used` | player_id: int |
+| `core/synergy_system.gd` | `gauge_changed` | player_id: int, value: float, max_value: float |
+| `system/ui_manager.gd` | `menu_changed` | menu_name: String |
+| `ui/character_select.gd` | `start_requested` | p1_id: String, p2_id: String |
+| `ui/character_select.gd` | `cancel_requested` | - |
+| `ui/character_select.gd` | `main_menu_requested` | - |
+| `ui/character_select.gd` | `mode_changed` | is_pvp: bool |
+
+## Fighter move dictionary (`MOVE_DEFAULTS` in `core/fighter.gd`)
+
+Every move is a dictionary built from these defaults. A fighter overrides only what it needs in `_define_moves()`.
+
+| Key | Default |
+|---|---|
+| `kind` | `"melee"` |
+| `dmg` | `8.0` |
+| `size` | `Vector2(44` |
+| `off` | `Vector2(34` |
+| `on` | `4` |
+| `total` | `16` |
+| `kb` | `Vector2(380` |
+| `push` | `0.0` |
+| `lunge` | `0.0` |
+| `hop` | `0.0` |
+| `cd` | `0.0` |
+| `cost` | `0.0` |
+| `spawn` | `0` |
+| `proj_speed` | `0.0` |
+| `spawn_count` | `1` |
+| `spawn_interval` | `1` |
+| `hit_interval` | `0` |
+| `i_frames` | `0` |
+| `teleport_distance` | `0.0` |
+| `counter` | `false` |
+| `counter_frames` | `0` (seconds the counter stays armed: frames / 60) |
+| `counter_mult` | `1.5` (not in the defaults; damage multiplier of the reflected hit) |
+| `counter_cap` | no cap (not in the defaults; most damage the reflected hit can send back) |
+| `stamina_steal` | `0.0` |
+| `self_damage` | `0.0` |
+| `damage_buff` | `1.0` |
+| `hitstun_mult` | `1.0` |
+| `root` | `0.0` |
+| `trap_lifetime` | `3.0` |
+| `trap_persistent` | `false` |
+| `trap_tick` | `0.0` |
+| `track_y` | `false` |
+| `projectile_block` | `false` |
+| `anim_rate` | `1.0` |
+| `anim_tilt` | `0.0` |
+| `anim_scale` | `Vector2.ONE` |
+| `fx_tint` | `Color.WHITE` |
+| `fx` | `""` |
+| `fx_frames` | `4` |
+| `fx_loop` | `false` |
+| `fx_cast` | `""` |
+| `fx_cast_frames` | `4` |
+| `fx_cast_off` | `Vector2(26` |
+| `proj_frames` | `1` |
+| `proj_fps` | `14.0` |
+| `element` | `-1` |
+| `apply` | `"auto"` |
+| `stun` | `18` |
+| `proj_vys` | `[]` |
+| `proj_off` | `Vector2(30` |
+| `proj_tex` | `"res://assets/water_orb.png"` |
+| `proj_scale` | `1.0` |
+| `proj_r` | `10.0` |
+| `proj_life` | `3.0` |
+| `proj_spin` | `0.0` |
+| `trap_tex` | `"res://assets/trap.png"` |
+| `trap_dist` | `90.0` |
+| `dive_start` | `0` |
+| `dive_dx` | `380.0` |
+| `dive_speed` | `1050.0` |
+| `wave` | `false` |
+| `proj_gravity` | `0.0` |
+| `proj_bounce` | `0` |
+| `proj_pierce` | `false` |
+| `proj_hit_gap` | `0.45` |
+| `trap_delay` | `0.0` |
+| `trap_size` | `Vector2(60` |
+| `trap_step` | `0.0` |
+| `trap_frames` | `1` |
+| `trap_marker` | `false` |
+| `trap_fps` | `8.0` |
+| `trap_scale` | `1.0` |
+
+## Key bindings (`system/keybinds.gd`)
+
+| Action | Key |
+|---|---|
+| `p1_left` | `KEY_A` |
+| `p1_right` | `KEY_D` |
+| `p1_jump` | `KEY_W` |
+| `p1_attack` | `KEY_F` |
+| `p1_dash` | `KEY_E` |
+| `p1_special1` | `KEY_G` |
+| `p1_special2` | `KEY_H` |
+| `p1_ultimate` | `KEY_T` |
+| `p1_down` | `KEY_S` |
+| `p1_support` | `KEY_R` |
+| `p1_support_2` | `KEY_U` |
+| `p1_support_3` | `KEY_Y` |
+| `p1_nav_up` | `KEY_W` |
+| `p1_nav_down` | `KEY_S` |
+| `p1_nav_left` | `KEY_A` |
+| `p1_nav_right` | `KEY_D` |
+| `p1_select` | `KEY_ENTER` |
+| `p2_left` | `KEY_LEFT` |
+| `p2_right` | `KEY_RIGHT` |
+| `p2_jump` | `KEY_UP` |
+| `p2_attack` | `KEY_KP_4` |
+| `p2_dash` | `KEY_KP_0` |
+| `p2_special1` | `KEY_KP_5` |
+| `p2_special2` | `KEY_KP_6` |
+| `p2_ultimate` | `KEY_KP_8` |
+| `p2_down` | `KEY_DOWN` |
+| `p2_support` | `KEY_KP_DIVIDE` |
+| `p2_support_2` | `KEY_KP_MULTIPLY` |
+| `p2_support_3` | `KEY_KP_SUBTRACT` |
+| `p2_nav_up` | `KEY_KP_8` |
+| `p2_nav_down` | `KEY_KP_2` |
+| `p2_nav_left` | `KEY_KP_4` |
+| `p2_nav_right` | `KEY_KP_6` |
+| `p2_select` | `KEY_KP_ENTER` |
+| `p1_cpu_toggle` | `KEY_Q` |
+| `p2_cpu_toggle` | `KEY_KP_ADD` |
+| `cpu_level` | `KEY_C` |
+| `menu_toggle` | `KEY_TAB` |
+| `restart_round` | `KEY_F5` |
+| `debug_hitboxes` | `KEY_F1` |
+| `debug_keytest` | `KEY_F2` |
+
+## Roster (`roster/roster.gd`)
+
+| id | name |
+|---|---|
+| `gholdengo` | Gholdengo |
+| `marshadow` | Marshadow |
+| `tinkaton` | Tinkaton |
+| `greninja` | Greninja |
+| `scizor` | Scizor |
+| `decidueye` | Decidueye |
+| `blaziken` | Blaziken |
+| `gengar` | Gengar |
+| `alakazam` | Alakazam |
+| `mewtwo` | Mewtwo |
+| `lucario` | Lucario |
+| `toxicroak` | Toxicroak |
+
+## Tuning constants: key values
+
+Read these from the file named; the values here are the current ones at the time of generation.
+
+**core/stats_component.gd**
+
+| Constant | Value |
+|---|---|
+| `DASH_COST` | `25.0` |
+| `REGEN_PER_SEC` | `20.0` |
+| `RECOVER_AT` | `25.0` |
+| `BURN_DAMAGE` | `2.0` |
+| `BURN_TICKS` | `3` |
+| `POISON_DAMAGE` | `2.0` |
+| `POISON_TICKS` | `4` |
+| `SLOW_FACTOR` | `0.75` |
+| `SLOW_TIME` | `3.0` |
+
+**core/synergy_system.gd**
+
+| Constant | Value |
+|---|---|
+| `GAUGE_MAX` | `1000.0` |
+| `BURST_DURATION` | `12.0` |
+| `BURST_COOLDOWN` | `30.0` |
+| `ULTIMATE_COST` | `1000.0` |
+
+**core/support_system.gd**
+
+| Constant | Value |
+|---|---|
+| `MAX_SUPPORTS` | `3` |
+| `BASE_COOLDOWN` | `20.0` |
+
+**core/fighter.gd**
+
+| Constant | Value |
+|---|---|
+| `GRAVITY_RISE` | `2200.0` |
+| `GRAVITY_FALL` | `3200.0` |
+| `JUMP_CUT` | `-220.0` |
+| `GROUND_ACCEL` | `4000.0` |
+| `AIR_ACCEL` | `2600.0` |
+| `HITSTUN_FRAMES` | `18` |
+| `HITSTOP_SCALE` | `1.0` |
+| `KO_HITSTOP` | `12` |
+| `TECH_COOLDOWN` | `2.0` |
+| `COYOTE_FRAMES` | `6` |
+
+## Known issues (current)
+
+- Six support icons are referenced but missing from `assets/` (`core/support_system.gd`).
+- Attack has 4 frames in `ANIMS` (`core/fighter.gd`). The Tinkaton reference has 5, so the row and the timing constant need changing together.
+- Mewtwo `special2` (Disable) is almost never used by the bots (0 a match in the latest runs). Cause not found. Alakazam `special2` (Reflect) is used about 3 times a match on hard (since 2026-10-20 its returned damage is capped at 10).
+- Bots do not dodge Alakazam's Mind Blast (ultimate), so its connect rate against bots (83%) does not show how dodgeable it is for a player. Checked by playing only.
+- Projectile hits on the bots do not respond to dodging: most shots are first seen within 100 px of the bot, or land while it is in hitstun or mid-attack, when no dash can start (see the 2026-10-20 addendum).
+- Toxicroak `special1_down` (Toxic Spikes) has never connected in any balance run. Its Down preference is 0.1 and Down variants with a low preference are never used, so the bot no longer picks it. The trap itself is unverified.
+- Whiff memory (`WHIFF_MEMORY` in `ai/ai_controller.gd`) is off. Bots use a special only 1-2 times in a ~15 s match, so the 8-use window never fills.
+- Decidueye `special2_down` (Vine Lash) pulled a target standing close (60-100 px) without ever hitting it. The cause is inferred from the hitbox geometry (the whip opens at frame 9, when the hop has lifted him above a close target). Fixed by opening the whip at frame 4. In the headless run over all 12 fighters, no move is dead.
+- The move check sets the `pull` flag only for a move that has a `pull` key. A lunge that closes the gap no longer counts as a pull.
+- Balance tool: "Show fights" draws four fight views per frame (`RENDER_SLOTS_PER_FRAME`), so fights refresh at the game frame rate divided by 4. Matches run at real game speed.
+- Godot reports integer-division, enum-cast and ternary-type warnings on reload. Not all source lines are identified.
+- Not verified in Godot 4.7 since the latest changes (see `SESSION_REPORT.md`).
+
+## Addendum 2026-10-21 (names added since the last sync)
+- `ui/debug/move_check.gd` (new, `class_name MoveCheck`): `DISTANCES` (60, 100, 150, 260 px), `SETTLE_FRAMES` (120), `TEST_FRAMES` (150), `STAND_X`, `STAND_Y`. Functions: `run(arena, tree, ids, should_stop, on_progress)` (returns `rows`, `lines`, `stopped`), `_test` (one move at one distance), `_move_keys`, `_report_lines`.
+- `ui/debug/balance_tool.gd`: `MoveCheckScript` (preload), `_move_check_btn`, `_checking`, `_move_check_pressed()` (the "Move check (M)" button and the M key), `_write_check_file()` (writes `balance/move_check_<unix time>.txt`).
+- `fighters/mewtwo/fighter_mewtwo.gd`: `basic_down` now has `spawn` 6 (its shockwave never spawned before).
+- `fighters/decidueye/fighter_decidueye.gd`: `special2_down` `hit_on` 9 -> 4 (the whip opens while the hop is still low).
+
+## Addendum 2026-10-20 (names added since the last sync)
+- `ai/ai_controller.gd`: `PROJ_LOOK` (360 px), `PROJ_LANE_HIGH` (64 px above the feet), `PROJ_LANE_LOW` (12 px below), `PROJ_DODGE_CHANCE` (0.85), `TRAP_AVOID_CHANCE` (0.85), `TRAP_HOP_DIST` (110 px). Variables: `_proj_seen`, `_proj_dodge`, `_trap_avoid`, `_hazard_move`, `_hazard_frames`. Functions: `_avoid_hazards` (every physics frame, after `_try_dodge`: stops walking toward an incoming opponent shot, dashes through it once the reaction time has passed, hops an opponent trap on the bot's path, and dashes out of one it is standing in), `_prune_hazards`. `_drive_movement` uses `_hazard_move` while `_hazard_frames` is above 0.
+- `core/fighter.gd`: `counter_mult` (default 1.5) and `counter_cap` (default no cap), read from the move keys `counter_mult` and `counter_cap` when a counter move starts. An armed counter returns `min(damage * counter_mult, counter_cap)`.
+- `fighters/alakazam/fighter_alakazam.gd` (values, not names): `basic` dmg 2.0, `proj_speed` 560, `total` 28; `special2` `counter_cap` 10; `ultimate` `cd` 10.
+
+## Addendum 2026-10-19 (names added since the last sync)
+
+- `ai/ai_controller.gd`: `WALL_EDGE` (150 px: a keep-away bot steps in instead of backing into a wall), `DODGE_CHANCE`
+  (0.7), `DODGE_MARGIN` (10 px), `WHIFF_MEMORY` (false; the whiff-ban system is present but off), `RECENT_USES`,
+  `WHIFF_BAN_FRAMES`. Functions: `_pinned_against_wall`, `_melee_threat_now`, `_try_dodge`, `_disfavored`,
+  `_on_opponent_hit`.
+- `ui/debug/balance_tool.gd`: `ZOOM_STEPS`, `CORNER_EDGE`, `THREAT_RANGE` (the zoom view and the tile labels).
+- `core/fighter.gd`: `WALL_LEFT_X`, `WALL_RIGHT_X` (the arena's inner wall faces), `enter_ultimate` / `state_ultimate` /
+  `exit_ultimate`, `state_hitstun`, `exit_special2`, `PROJECTILE_SCENE`, `TRAP_SCRIPT`, `BUFFER_TAIL`.
+- Not in this upload (see `docs/ANALYSIS.md`): timed counter, move buff expiry, awakened log labels.
+
